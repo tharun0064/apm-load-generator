@@ -34,40 +34,26 @@ echo "Pool Max: ${DB_POOL_MAX:-100}"
 echo "=========================================="
 echo ""
 
-# Find New Relic agent JAR
-NEWRELIC_JAR=""
-
-# Check in order of preference:
-# 1. Local directory: ./newrelic.jar (included in project)
-# 2. Environment variable NEW_RELIC_JAR_PATH (custom location)
-
-if [ -f "newrelic.jar" ]; then
-    NEWRELIC_JAR="newrelic.jar"
+# Check if New Relic agent JAR and config exist
+if [ -f "newrelic.jar" ] && [ -f "newrelic.yml" ]; then
     echo "Found New Relic agent at: ./newrelic.jar"
-elif [ ! -z "${NEW_RELIC_JAR_PATH}" ] && [ -f "${NEW_RELIC_JAR_PATH}" ]; then
-    NEWRELIC_JAR="${NEW_RELIC_JAR_PATH}"
-    echo "Found New Relic agent at: ${NEWRELIC_JAR}"
-fi
-
-# Check if New Relic agent is being used
-if [ ! -z "${NEWRELIC_JAR}" ] && [ ! -z "${NEW_RELIC_LICENSE_KEY}" ]; then
-    echo "Running with New Relic Java Agent..."
-    echo "App Name: ${NEW_RELIC_APP_NAME:-OLTP Load Generator}"
+    echo "Found New Relic config at: ./newrelic.yml"
     echo ""
-    java -javaagent:"${NEWRELIC_JAR}" \
-         -Dnewrelic.config.license_key="${NEW_RELIC_LICENSE_KEY}" \
-         -Dnewrelic.config.app_name="${NEW_RELIC_APP_NAME:-OLTP Load Generator}" \
-         -Dnewrelic.config.log_level="${NEW_RELIC_LOG_LEVEL:-info}" \
-         -Dnewrelic.config.distributed_tracing.enabled="${NEW_RELIC_DISTRIBUTED_TRACING_ENABLED:-true}" \
+    echo "Running with New Relic Java Agent..."
+    echo "App Name: OLTP Load Generator (from newrelic.yml)"
+    echo ""
+    java -javaagent:newrelic.jar \
          -Dthreads=${THREADS} \
          -jar "$JAR_FILE"
 else
-    if [ -z "${NEW_RELIC_LICENSE_KEY}" ]; then
-        echo "Running without New Relic (NEW_RELIC_LICENSE_KEY not set in .env)"
-    else
-        echo "Running without New Relic (newrelic.jar not found)"
-        echo "Tip: Set NEW_RELIC_JAR_PATH in .env to point to your newrelic.jar location"
+    if [ ! -f "newrelic.jar" ]; then
+        echo "WARNING: newrelic.jar not found"
     fi
+    if [ ! -f "newrelic.yml" ]; then
+        echo "WARNING: newrelic.yml not found"
+    fi
+    echo ""
+    echo "Running without New Relic agent"
     echo ""
     java -Dthreads=${THREADS} -jar "$JAR_FILE"
 fi
