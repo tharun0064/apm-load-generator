@@ -1,0 +1,54 @@
+# Environment files with sensitive data
+.env
+
+# Maven build output
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+*.swp
+*.swo
+*~
+
+# New Relic
+# Note: newrelic.jar and newrelic.yml are included in the project (see exceptions below)
+# Only ignore the agent log file
+newrelic_agent.log
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Java class files
+*.class
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Exception: Include newrelic.jar in the project
+!app1-oltp-load-generator/newrelic.jar
+!app2-analytics-load-generator/newrelic.jar

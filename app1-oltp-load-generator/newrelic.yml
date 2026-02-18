@@ -1,0 +1,140 @@
+# New Relic Java Agent Configuration for OLTP Load Generator
+# Documentation: https://docs.newrelic.com/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/
+
+common: &default_settings
+  # ================================================================
+  # License Key - REQUIRED
+  # Get your license key from: https://one.newrelic.com/ -> API Keys
+  # ================================================================
+  license_key: 'YOUR_LICENSE_KEY_HERE'
+
+  # ================================================================
+  # Application Name
+  # This is how your application appears in New Relic
+  # ================================================================
+  app_name: 'OLTP Load Generator'
+
+  # ================================================================
+  # Logging Configuration
+  # ================================================================
+  log_level: info
+
+  # Agent logging
+  log_file_name: 'logs/newrelic_agent.log'
+  log_file_path: '.'
+  log_daily: true
+
+  # ================================================================
+  # Distributed Tracing
+  # ================================================================
+  distributed_tracing:
+    enabled: true
+
+  # ================================================================
+  # Transaction Tracer
+  # Captures detailed information about slow transactions
+  # ================================================================
+  transaction_tracer:
+    enabled: true
+    transaction_threshold: apdex_f
+    record_sql: obfuscated
+    explain_enabled: true
+    explain_threshold: 500
+    stack_trace_threshold: 500
+
+  # ================================================================
+  # SQL Tracing
+  # ================================================================
+  slow_sql:
+    enabled: true
+
+  # ================================================================
+  # Error Collection
+  # ================================================================
+  error_collector:
+    enabled: true
+    ignore_errors: ''
+    ignore_status_codes: 404
+
+  # ================================================================
+  # Thread Profiler
+  # ================================================================
+  thread_profiler:
+    enabled: true
+
+  # ================================================================
+  # JVM Configuration
+  # ================================================================
+  jvm:
+    # Enable additional JVM metrics
+    jfr:
+      enabled: false
+
+  # ================================================================
+  # Database Configuration
+  # ================================================================
+  database_name_reporting:
+    enabled: true
+
+  # Record Oracle database queries
+  datastore_tracer:
+    database_name_reporting:
+      enabled: true
+    instance_reporting:
+      enabled: true
+
+  # ================================================================
+  # Transaction Events
+  # ================================================================
+  transaction_events:
+    enabled: true
+    max_samples_stored: 10000
+
+  # ================================================================
+  # Span Events
+  # ================================================================
+  span_events:
+    enabled: true
+    max_samples_stored: 2000
+
+  # ================================================================
+  # Custom Instrumentation
+  # ================================================================
+  enable_auto_app_naming: false
+  enable_auto_transaction_naming: true
+
+  # ================================================================
+  # High Security Mode (disable for testing)
+  # ================================================================
+  high_security: false
+
+  # ================================================================
+  # Labels for Filtering in New Relic
+  # ================================================================
+  labels:
+    environment: test
+    application: oltp-load-generator
+    team: performance-testing
+    database: oracle
+
+  # ================================================================
+  # Browser Monitoring (not needed for backend apps)
+  # ================================================================
+  browser_monitoring:
+    auto_instrument: false
+
+# ================================================================
+# Environment-Specific Settings
+# ================================================================
+production:
+  <<: *default_settings
+
+development:
+  <<: *default_settings
+  app_name: 'OLTP Load Generator (Dev)'
+  log_level: debug
+
+test:
+  <<: *default_settings
+  app_name: 'OLTP Load Generator (Test)'
+  log_level: debug
