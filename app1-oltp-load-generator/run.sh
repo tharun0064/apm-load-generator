@@ -7,7 +7,10 @@ set -e  # Exit on error
 # Load environment variables from .env file
 if [ -f .env ]; then
     echo "Loading configuration from .env file..."
-    export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
+    # Export variables, ignoring comments and empty lines
+    set -a
+    source <(cat .env | sed 's/#.*//g' | grep -v '^$' | grep '=')
+    set +a
 else
     echo "WARNING: .env file not found. Using default environment variables or application.properties"
     echo "Copy .env.example to .env and configure your database credentials"
