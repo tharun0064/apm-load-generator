@@ -17,7 +17,6 @@ Before you begin, ensure you have:
 - [ ] **10GB+ free disk space** in Oracle tablespace
 - [ ] **New Relic account** (free tier works) - https://newrelic.com/signup
 - [ ] **New Relic license key** ready
-- [ ] **New Relic Java agent** at `/Users/tbalanagu/Downloads/newrelic.jar`
 
 **Verify your setup:**
 ```bash
@@ -29,10 +28,9 @@ mvn -version     # Should show 3.6 or higher
 
 # Check Oracle is running
 sqlplus sys/your_password@localhost:1521/ORCL as sysdba  # Should connect
-
-# Check New Relic JAR exists
-ls -lh /Users/tbalanagu/Downloads/newrelic.jar  # Should show 37MB file
 ```
+
+**Note:** New Relic JAR (`newrelic.jar`) and configuration (`newrelic.yml`) are already included in both application directories!
 
 ---
 
@@ -149,7 +147,7 @@ ls -lh app2-analytics-load-generator/target/*.jar
 
 ## ⚙️ Part 3: Configure Applications (3 minutes)
 
-### Step 3.1: Configure OLTP Application
+### Step 3.1: Configure OLTP Application - Database Settings
 
 Edit: `app1-oltp-load-generator/.env`
 
@@ -165,22 +163,31 @@ DB_POOL_MIN=20
 
 # Application Settings
 THREADS=100
-
-# New Relic Configuration
-NEW_RELIC_LICENSE_KEY=NRAK-YOUR_LICENSE_KEY_HERE
-NEW_RELIC_APP_NAME=OLTP Load Generator
-NEW_RELIC_LOG_LEVEL=info
-NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 ```
 
 **Update these values:**
-1. `DB_URL` - Your Oracle connection string
-2. `DB_USERNAME` - Keep as `oltp_user` (or change if you used different name)
-3. `DB_PASSWORD` - Change if you set a different password in oracle-setup.sql
-4. `NEW_RELIC_LICENSE_KEY` - Your New Relic license key (starts with NRAK-)
-5. `THREADS` - Start with 100 for extreme load (or 25 for moderate)
+1. `DB_URL` - Your Oracle connection string (hostname:port:SID)
+2. `DB_USERNAME` - Keep as `oltp_user` (unless you changed it)
+3. `DB_PASSWORD` - Match what you set in oracle-setup.sql (default: `OltpPass123!`)
+4. `THREADS` - Start with 100 for extreme load (or 25 for moderate)
 
-### Step 3.2: Configure Analytics Application
+### Step 3.2: Configure OLTP Application - New Relic
+
+Edit: `app1-oltp-load-generator/newrelic.yml`
+
+Find this line:
+```yaml
+license_key: 'YOUR_LICENSE_KEY_HERE'
+```
+
+Replace with your actual license key:
+```yaml
+license_key: 'NRAK-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+```
+
+**That's it!** The rest of the `newrelic.yml` is already configured. The JAR file (`newrelic.jar`) is already included.
+
+### Step 3.3: Configure Analytics Application - Database Settings
 
 Edit: `app2-analytics-load-generator/.env`
 
@@ -196,22 +203,29 @@ DB_POOL_MIN=10
 
 # Application Settings
 THREADS=40
-
-# New Relic Configuration
-NEW_RELIC_LICENSE_KEY=NRAK-YOUR_LICENSE_KEY_HERE
-NEW_RELIC_APP_NAME=Analytics Load Generator
-NEW_RELIC_LOG_LEVEL=info
-NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 ```
 
 **Update these values:**
 1. `DB_URL` - Same as OLTP (your Oracle connection string)
 2. `DB_USERNAME` - Keep as `analytics_user`
-3. `DB_PASSWORD` - Change if you set a different password
-4. `NEW_RELIC_LICENSE_KEY` - Same license key as OLTP
-5. `THREADS` - Start with 40 for heavy load (or 10 for moderate)
+3. `DB_PASSWORD` - Match what you set in oracle-setup.sql (default: `AnalyticsPass123!`)
+4. `THREADS` - Start with 40 for heavy load (or 10 for moderate)
 
-### Step 3.3: Get Your New Relic License Key
+### Step 3.4: Configure Analytics Application - New Relic
+
+Edit: `app2-analytics-load-generator/newrelic.yml`
+
+Find this line:
+```yaml
+license_key: 'YOUR_LICENSE_KEY_HERE'
+```
+
+Replace with your actual license key (same as OLTP):
+```yaml
+license_key: 'NRAK-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+```
+
+### Step 3.5: Get Your New Relic License Key
 
 If you don't have your license key:
 
@@ -219,9 +233,9 @@ If you don't have your license key:
 2. Log in to your account
 3. Click your name (top right) → **API Keys**
 4. Find or create a **License Key** (starts with NRAK-)
-5. Copy and paste it into both `.env` files
+5. Copy and paste it into both `newrelic.yml` files (replace `YOUR_LICENSE_KEY_HERE`)
 
-### Step 3.4: Connection String Formats
+### Step 3.6: Connection String Formats
 
 **For SID (most common):**
 ```bash
@@ -257,7 +271,7 @@ cd /Users/tbalanagu/Documents/load-generators/apm-load-generator/app1-oltp-load-
 **You should see:**
 ```
 Loading configuration from .env file...
-Found New Relic agent at: /Users/tbalanagu/Downloads/newrelic.jar
+Found New Relic agent at: ./newrelic.jar
 Running with New Relic Java Agent...
 App Name: OLTP Load Generator
 
@@ -289,7 +303,7 @@ cd /Users/tbalanagu/Documents/load-generators/apm-load-generator/app2-analytics-
 **You should see:**
 ```
 Loading configuration from .env file...
-Found New Relic agent at: /Users/tbalanagu/Downloads/newrelic.jar
+Found New Relic agent at: ./newrelic.jar
 Running with New Relic Java Agent...
 App Name: Analytics Load Generator
 
@@ -515,16 +529,18 @@ The applications will:
 
 ### Issue: "newrelic.jar not found"
 
-**Verify file exists:**
+**The JAR is already included in the project!** Check if it exists:
 ```bash
-ls -lh /Users/tbalanagu/Downloads/newrelic.jar
+ls -lh app1-oltp-load-generator/newrelic.jar
+ls -lh app2-analytics-load-generator/newrelic.jar
 ```
 
-**If missing:**
+**Both files should be ~37MB.** If somehow missing, re-copy from your backup or download:
 ```bash
 curl -O https://download.newrelic.com/newrelic/java-agent/newrelic-agent/current/newrelic-java.zip
 unzip newrelic-java.zip
-mv newrelic/newrelic.jar ~/Downloads/
+cp newrelic/newrelic.jar app1-oltp-load-generator/
+cp newrelic/newrelic.jar app2-analytics-load-generator/
 ```
 
 ### Issue: "Unable to get connection from pool"
@@ -651,22 +667,14 @@ DROP USER otel_monitor CASCADE;
 
 ---
 
-## 📚 Additional Documentation
-
-- **[HIGH_LOAD_GUIDE.md](HIGH_LOAD_GUIDE.md)** - Detailed load characteristics, monitoring queries, tuning recommendations
-- **[QUICK_START.md](QUICK_START.md)** - Condensed quick start guide
-- **[NEWRELIC_QUICKSTART.md](NEWRELIC_QUICKSTART.md)** - New Relic specific setup
-- **[ENV_SETUP.md](ENV_SETUP.md)** - Environment configuration details
-- **[ORACLE_SETUP_SUMMARY.md](ORACLE_SETUP_SUMMARY.md)** - Database setup reference
-- **[WHATS_CHANGED.md](WHATS_CHANGED.md)** - What makes this extreme load
-
 ---
 
 ## ✅ Success Checklist
 
 - [x] Oracle database setup complete (3 users, 11 tables, sample data)
 - [x] Applications built successfully (2 JAR files)
-- [x] `.env` files configured (DB credentials + New Relic license key)
+- [x] `.env` files configured (DB credentials)
+- [x] `newrelic.yml` files configured (New Relic license key)
 - [x] OLTP application running (10,000-20,000 ops/sec)
 - [x] Analytics application running (500-1,000 queries/sec)
 - [x] Oracle showing 130-150 active sessions
