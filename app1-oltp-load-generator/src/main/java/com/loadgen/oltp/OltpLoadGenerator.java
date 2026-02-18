@@ -90,9 +90,25 @@ public class OltpLoadGenerator {
         NewRelic.addCustomParameter("threadId", threadId);
 
         int operationCount = 0;
+        long lastBreakTime = System.currentTimeMillis();
+        int cycleOperations = 0;
 
         while (running) {
             try {
+                // Check if it's time for a 10-second break (after 30-60 seconds of work)
+                long currentTime = System.currentTimeMillis();
+                long timeSinceBreak = currentTime - lastBreakTime;
+
+                // Take a break every 30-60 seconds (randomized per thread to avoid all threads breaking at once)
+                int breakInterval = 30000 + random.nextInt(30000); // 30-60 seconds
+                if (timeSinceBreak > breakInterval) {
+                    logger.info("Worker thread {} taking 10-second break after {} operations", threadId, cycleOperations);
+                    Thread.sleep(10000); // 10 second break
+                    lastBreakTime = System.currentTimeMillis();
+                    cycleOperations = 0;
+                    logger.info("Worker thread {} resuming work", threadId);
+                }
+
                 // Randomly select operation type with weighted distribution
                 int operation = random.nextInt(100);
 
@@ -123,6 +139,7 @@ public class OltpLoadGenerator {
                 }
 
                 operationCount++;
+                cycleOperations++;
 
                 // MINIMAL delay for MAXIMUM load - only 1-5ms!
                 Thread.sleep(random.nextInt(5) + 1); // 1-5ms delay = VERY HIGH LOAD
@@ -134,7 +151,13 @@ public class OltpLoadGenerator {
             } catch (Exception e) {
                 logger.error("Error in worker thread {}: {}", threadId, e.getMessage());
                 NewRelic.noticeError(e);
-                // Continue running even on errors
+                // Continue running even on errors, but add small delay to prevent tight error loops
+                try {
+                    Thread.sleep(1000); // 1 second backoff on error
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
         }
 

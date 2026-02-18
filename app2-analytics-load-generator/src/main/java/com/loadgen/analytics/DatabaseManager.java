@@ -33,6 +33,10 @@ public class DatabaseManager {
         config.setIdleTimeout(Long.parseLong(props.getProperty("db.idle.timeout", "900000")));
         config.setMaxLifetime(Long.parseLong(props.getProperty("db.max.lifetime", "1800000")));
 
+        // CRITICAL: Prevent threads from hanging indefinitely
+        config.setValidationTimeout(5000);  // 5 second validation timeout
+        config.setLeakDetectionThreshold(60000);  // Detect connection leaks after 60 seconds
+
         // Performance settings for long-running queries
         config.setAutoCommit(true);
         config.addDataSourceProperty("cachePrepStmts", "true");
@@ -40,10 +44,11 @@ public class DatabaseManager {
         config.addDataSourceProperty("prepStmtCacheSqlLimit", "4096");
         config.addDataSourceProperty("defaultRowPrefetch", "100");
 
-        // Oracle specific settings for analytics
+        // Oracle specific settings for analytics - TIMEOUTS ARE CRITICAL
         config.addDataSourceProperty("oracle.jdbc.implicitStatementCacheSize", "30");
-        config.addDataSourceProperty("oracle.net.CONNECT_TIMEOUT", "60000");
-        config.addDataSourceProperty("oracle.jdbc.ReadTimeout", "300000"); // 5 min for long queries
+        config.addDataSourceProperty("oracle.net.CONNECT_TIMEOUT", "60000");  // 60s connection timeout
+        config.addDataSourceProperty("oracle.jdbc.ReadTimeout", "180000");  // 3 min for analytics queries
+        config.addDataSourceProperty("oracle.net.READ_TIMEOUT", "180000");  // 3 min socket read timeout
 
         config.setPoolName("AnalyticsConnectionPool");
 
@@ -77,7 +82,16 @@ public class DatabaseManager {
     }
 
     public Connection getConnection() throws SQLException {
-        return dataSource.getConnection();
+        Connection conn = dataSource.getConnection();
+        // Set default query timeout for all statements created from this connection
+        // Analytics queries can take longer, but still need a timeout
+        try {
+            conn.setNetworkTimeout(null, 180000); // 3 minute timeout for analytics queries
+        } catch (SQLException e) {
+            // Some JDBC drivers don't support this, log but continue
+            logger.debug("Could not set network timeout: {}", e.getMessage());
+        }
+        return conn;
     }
 
     public int getActiveConnections() {

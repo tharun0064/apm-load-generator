@@ -88,9 +88,25 @@ public class AnalyticsLoadGenerator {
         NewRelic.addCustomParameter("threadId", threadId);
 
         int queryCount = 0;
+        long lastBreakTime = System.currentTimeMillis();
+        int cycleQueries = 0;
 
         while (running) {
             try {
+                // Check if it's time for a 10-second break (after 30-60 seconds of work)
+                long currentTime = System.currentTimeMillis();
+                long timeSinceBreak = currentTime - lastBreakTime;
+
+                // Take a break every 30-60 seconds (randomized per thread to avoid all threads breaking at once)
+                int breakInterval = 30000 + random.nextInt(30000); // 30-60 seconds
+                if (timeSinceBreak > breakInterval) {
+                    logger.info("Analytics worker thread {} taking 10-second break after {} queries", threadId, cycleQueries);
+                    Thread.sleep(10000); // 10 second break
+                    lastBreakTime = System.currentTimeMillis();
+                    cycleQueries = 0;
+                    logger.info("Analytics worker thread {} resuming work", threadId);
+                }
+
                 // Randomly select analytical operation
                 int operation = random.nextInt(100);
 
@@ -112,6 +128,7 @@ public class AnalyticsLoadGenerator {
                 }
 
                 queryCount++;
+                cycleQueries++;
 
                 // SHORT delay for HEAVY load - analytics queries will overlap and stress DB!
                 Thread.sleep(random.nextInt(50) + 10); // 10-60ms delay = HEAVY CONCURRENT LOAD
@@ -123,7 +140,13 @@ public class AnalyticsLoadGenerator {
             } catch (Exception e) {
                 logger.error("Error in analytics worker thread {}: {}", threadId, e.getMessage());
                 NewRelic.noticeError(e);
-                // Continue running even on errors
+                // Continue running even on errors, but add small delay to prevent tight error loops
+                try {
+                    Thread.sleep(2000); // 2 second backoff on error (longer for analytics)
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
         }
 

@@ -33,6 +33,10 @@ public class DatabaseManager {
         config.setIdleTimeout(Long.parseLong(props.getProperty("db.idle.timeout", "600000")));
         config.setMaxLifetime(Long.parseLong(props.getProperty("db.max.lifetime", "1800000")));
 
+        // CRITICAL: Prevent threads from hanging indefinitely
+        config.setValidationTimeout(5000);  // 5 second validation timeout
+        config.setLeakDetectionThreshold(60000);  // Detect connection leaks after 60 seconds
+
         // Performance settings
         config.setAutoCommit(true);
         config.addDataSourceProperty("cachePrepStmts", "true");
@@ -40,9 +44,11 @@ public class DatabaseManager {
         config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
         config.addDataSourceProperty("useServerPrepStmts", "true");
 
-        // Oracle specific settings
+        // Oracle specific settings - TIMEOUTS ARE CRITICAL
         config.addDataSourceProperty("oracle.jdbc.implicitStatementCacheSize", "50");
-        config.addDataSourceProperty("oracle.net.CONNECT_TIMEOUT", "30000");
+        config.addDataSourceProperty("oracle.net.CONNECT_TIMEOUT", "30000");  // 30s connection timeout
+        config.addDataSourceProperty("oracle.jdbc.ReadTimeout", "60000");  // 60s query timeout
+        config.addDataSourceProperty("oracle.net.READ_TIMEOUT", "60000");  // 60s socket read timeout
 
         config.setPoolName("OltpConnectionPool");
 
@@ -76,7 +82,16 @@ public class DatabaseManager {
     }
 
     public Connection getConnection() throws SQLException {
-        return dataSource.getConnection();
+        Connection conn = dataSource.getConnection();
+        // Set default query timeout for all statements created from this connection
+        // This prevents individual queries from hanging indefinitely
+        try {
+            conn.setNetworkTimeout(null, 60000); // 60 second timeout for all operations
+        } catch (SQLException e) {
+            // Some JDBC drivers don't support this, log but continue
+            logger.debug("Could not set network timeout: {}", e.getMessage());
+        }
+        return conn;
     }
 
     public int getActiveConnections() {
