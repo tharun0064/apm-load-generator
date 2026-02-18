@@ -1,36 +1,132 @@
 # New Relic Java Agent Configuration for Analytics Load Generator
-# Staging Environment Configuration
+# For full configuration options, see: https://docs.newrelic.com/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/
 
+# Common settings
 common: &default_settings
-  # License Key - Replace with your staging license key
-  license_key: 'YOUR_LICENSE_KEY_HERE'
+  # License key (can be overridden by NEW_RELIC_LICENSE_KEY environment variable)
+  license_key: '<%= ENV["NEW_RELIC_LICENSE_KEY"] %>'
 
-  # Application Name
-  app_name: 'PAYMENTS'
+  # Application name (can be overridden by NEW_RELIC_APP_NAME environment variable)
+  app_name: <%= ENV["NEW_RELIC_APP_NAME"] || "PAYMENTS" %>
 
-  # Log Level
-  log_level: info
-
-  # STAGING COLLECTOR CONFIGURATION
-  # This is the critical setting to point to staging instead of production
-  host: 'staging-collector.newrelic.com'
+  # STAGING COLLECTOR - Critical for staging environment
+  host: <%= ENV["NEW_RELIC_HOST"] || "staging-collector.newrelic.com" %>
   port: 443
 
-  # Distributed Tracing
+  # Audit mode for debugging (logs all data sent to New Relic)
+  audit_mode: false
+
+  # Log settings
+  log_level: <%= ENV["NEW_RELIC_LOG_LEVEL"] || "info" %>
+
+  # Log to file
+  log_file_name: newrelic_agent.log
+  log_file_path: logs
+  log_daily: true
+
+  # Enable distributed tracing
   distributed_tracing:
     enabled: true
 
-  # Transaction Tracer
+  # Enable span events
+  span_events:
+    enabled: true
+    max_samples_stored: 2000
+
+  # Application logging - CRITICAL for better observability
+  application_logging:
+    enabled: true
+    forwarding:
+      enabled: true
+      max_samples_stored: 10000
+    local_decorating:
+      enabled: true
+    metrics:
+      enabled: true
+
+  # Transaction tracer - Higher thresholds for analytics queries
   transaction_tracer:
     enabled: true
+    transaction_threshold: apdex_f
     record_sql: obfuscated
+    stack_trace_threshold: 0.5
+    explain_enabled: true
+    explain_threshold: 1.0
+    sql_metadata_comments: nr_service_guid
 
-  # Database Configuration
+  # Transaction events
+  transaction_events:
+    enabled: true
+    max_samples_stored: 10000
+
+  # Error collector
+  error_collector:
+    enabled: true
+    ignore_errors: ""
+    ignore_status_codes: 404
+
+  # Thread profiler
+  thread_profiler:
+    enabled: true
+
+  # Browser monitoring (not needed for backend)
+  browser_monitoring:
+    auto_instrument: false
+
+  # Cross application tracer (deprecated, use distributed tracing)
+  cross_application_tracer:
+    enabled: false
+
+  # SQL statement configuration - CRITICAL for slow analytical queries
+  slow_sql:
+    enabled: true
+
+  # Database tracer - CRITICAL for database monitoring
+  datastore_tracer:
+    enabled: true
+    instance_reporting:
+      enabled: true
+    database_name_reporting:
+      enabled: true
+
+  # Database name reporting
   database_name_reporting:
     enabled: true
 
-  datastore_tracer:
-    database_name_reporting:
-      enabled: true
-    instance_reporting:
-      enabled: true
+  # JVM monitoring
+  jvm:
+    jfr:
+      enabled: false
+
+  # Custom instrumentation
+  enable_auto_app_naming: false
+  enable_auto_transaction_naming: true
+
+  # High security mode (disable for testing)
+  high_security: false
+
+  # Labels for filtering in New Relic
+  labels:
+    environment: staging
+    application: analytics-load-generator
+    team: performance-testing
+    database: oracle
+
+# Environment specific settings can override common settings
+development:
+  <<: *default_settings
+  app_name: PAYMENTS (Development)
+  log_level: debug
+
+test:
+  <<: *default_settings
+  app_name: PAYMENTS (Test)
+  log_level: debug
+
+production:
+  <<: *default_settings
+  app_name: PAYMENTS (Production)
+
+staging:
+  <<: *default_settings
+  app_name: PAYMENTS (Staging)
