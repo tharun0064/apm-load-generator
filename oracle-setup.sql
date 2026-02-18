@@ -1,5 +1,42 @@
 -- Oracle Database Setup Script for Load Testing
 -- This script creates users, tables, and sample data for high-load testing
+-- This script is idempotent - you can run it multiple times
+
+-- ==================================================
+-- STEP 0: Drop existing users if they exist (cleanup)
+-- Run these commands as SYSDBA
+-- ==================================================
+
+-- Drop users if they exist (CASCADE removes all their objects)
+BEGIN
+  EXECUTE IMMEDIATE 'DROP USER oltp_user CASCADE';
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLCODE != -1918 THEN -- -1918 = user does not exist
+      RAISE;
+    END IF;
+END;
+/
+
+BEGIN
+  EXECUTE IMMEDIATE 'DROP USER analytics_user CASCADE';
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLCODE != -1918 THEN
+      RAISE;
+    END IF;
+END;
+/
+
+BEGIN
+  EXECUTE IMMEDIATE 'DROP USER otel_monitor CASCADE';
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLCODE != -1918 THEN
+      RAISE;
+    END IF;
+END;
+/
 
 -- ==================================================
 -- STEP 1: Create dedicated users for the applications
@@ -7,10 +44,7 @@
 -- ==================================================
 
 -- Create App User 1 (for OLTP application)
-CREATE USER oltp_user IDENTIFIED BY "OltpPass123!"
-DEFAULT TABLESPACE USERS
-TEMPORARY TABLESPACE TEMP
-QUOTA UNLIMITED ON USERS;
+CREATE USER oltp_user IDENTIFIED BY "OltpPass123!";
 
 GRANT CONNECT, RESOURCE TO oltp_user;
 GRANT CREATE SESSION TO oltp_user;
@@ -19,11 +53,20 @@ GRANT CREATE VIEW TO oltp_user;
 GRANT CREATE SEQUENCE TO oltp_user;
 GRANT CREATE PROCEDURE TO oltp_user;
 
+-- Grant unlimited quota on the default tablespace
+-- Note: Adjust tablespace name if needed (check with: SELECT property_value FROM database_properties WHERE property_name = 'DEFAULT_PERMANENT_TABLESPACE';)
+DECLARE
+  v_tablespace VARCHAR2(30);
+BEGIN
+  SELECT property_value INTO v_tablespace
+  FROM database_properties
+  WHERE property_name = 'DEFAULT_PERMANENT_TABLESPACE';
+  EXECUTE IMMEDIATE 'ALTER USER oltp_user QUOTA UNLIMITED ON ' || v_tablespace;
+END;
+/
+
 -- Create App User 2 (for Analytics application)
-CREATE USER analytics_user IDENTIFIED BY "AnalyticsPass123!"
-DEFAULT TABLESPACE USERS
-TEMPORARY TABLESPACE TEMP
-QUOTA UNLIMITED ON USERS;
+CREATE USER analytics_user IDENTIFIED BY "AnalyticsPass123!";
 
 GRANT CONNECT, RESOURCE TO analytics_user;
 GRANT CREATE SESSION TO analytics_user;
@@ -32,13 +75,16 @@ GRANT CREATE VIEW TO analytics_user;
 GRANT CREATE SEQUENCE TO analytics_user;
 GRANT CREATE PROCEDURE TO analytics_user;
 
--- Grant cross-schema access for analytics
-GRANT SELECT ON oltp_user.CUSTOMERS TO analytics_user;
-GRANT SELECT ON oltp_user.ORDERS TO analytics_user;
-GRANT SELECT ON oltp_user.ORDER_ITEMS TO analytics_user;
-GRANT SELECT ON oltp_user.PRODUCTS TO analytics_user;
-GRANT SELECT ON oltp_user.INVENTORY TO analytics_user;
-GRANT SELECT ON oltp_user.TRANSACTIONS TO analytics_user;
+-- Grant unlimited quota on the default tablespace
+DECLARE
+  v_tablespace VARCHAR2(30);
+BEGIN
+  SELECT property_value INTO v_tablespace
+  FROM database_properties
+  WHERE property_name = 'DEFAULT_PERMANENT_TABLESPACE';
+  EXECUTE IMMEDIATE 'ALTER USER analytics_user QUOTA UNLIMITED ON ' || v_tablespace;
+END;
+/
 
 -- ==================================================
 -- STEP 2: Create tables under oltp_user
@@ -64,7 +110,7 @@ CREATE TABLE oltp_user.CUSTOMERS (
 );
 
 CREATE SEQUENCE oltp_user.customer_seq START WITH 1 INCREMENT BY 1;
-CREATE INDEX oltp_user.idx_customer_email ON oltp_user.CUSTOMERS(email);
+-- Note: email column already has UNIQUE constraint which creates an index automatically
 CREATE INDEX oltp_user.idx_customer_type ON oltp_user.CUSTOMERS(customer_type);
 CREATE INDEX oltp_user.idx_customer_created ON oltp_user.CUSTOMERS(created_at);
 
@@ -87,7 +133,7 @@ CREATE TABLE oltp_user.PRODUCTS (
 
 CREATE SEQUENCE oltp_user.product_seq START WITH 1 INCREMENT BY 1;
 CREATE INDEX oltp_user.idx_product_category ON oltp_user.PRODUCTS(category);
-CREATE INDEX oltp_user.idx_product_sku ON oltp_user.PRODUCTS(sku);
+-- Note: sku column already has UNIQUE constraint which creates an index automatically
 CREATE INDEX oltp_user.idx_product_active ON oltp_user.PRODUCTS(is_active);
 
 -- Inventory Table
@@ -314,14 +360,25 @@ END;
 /
 
 -- ==================================================
--- STEP 5: Grant monitoring privileges for OTEL receiver
+-- STEP 5: Grant cross-schema access for analytics user
+-- Run as SYSDBA (or as oltp_user if they have grant privileges)
+-- ==================================================
+
+-- Grant analytics_user read access to oltp_user tables
+GRANT SELECT ON oltp_user.CUSTOMERS TO analytics_user;
+GRANT SELECT ON oltp_user.ORDERS TO analytics_user;
+GRANT SELECT ON oltp_user.ORDER_ITEMS TO analytics_user;
+GRANT SELECT ON oltp_user.PRODUCTS TO analytics_user;
+GRANT SELECT ON oltp_user.INVENTORY TO analytics_user;
+GRANT SELECT ON oltp_user.TRANSACTIONS TO analytics_user;
+
+-- ==================================================
+-- STEP 6: Grant monitoring privileges for OTEL receiver
 -- Run as SYSDBA
 -- ==================================================
 
 -- Create monitoring user for OTEL Oracle receiver
-CREATE USER otel_monitor IDENTIFIED BY "OtelMonitor123!"
-DEFAULT TABLESPACE USERS
-TEMPORARY TABLESPACE TEMP;
+CREATE USER otel_monitor IDENTIFIED BY "OtelMonitor123!";
 
 GRANT CONNECT TO otel_monitor;
 GRANT SELECT_CATALOG_ROLE TO otel_monitor;
