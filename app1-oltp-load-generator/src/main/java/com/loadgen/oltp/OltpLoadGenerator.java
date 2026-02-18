@@ -90,6 +90,7 @@ public class OltpLoadGenerator {
         int operationCount = 0;
         long lastBreakTime = System.currentTimeMillis();
         int cycleOperations = 0;
+        int consecutiveErrors = 0;
 
         while (running) {
             try {
@@ -138,6 +139,7 @@ public class OltpLoadGenerator {
 
                 operationCount++;
                 cycleOperations++;
+                consecutiveErrors = 0; // Reset error counter on success
 
                 // MINIMAL delay for MAXIMUM load - only 1-5ms!
                 Thread.sleep(random.nextInt(5) + 1); // 1-5ms delay = VERY HIGH LOAD
@@ -147,11 +149,16 @@ public class OltpLoadGenerator {
                 logger.warn("Worker thread {} interrupted", threadId);
                 break;
             } catch (Exception e) {
-                logger.error("Error in worker thread {}: {}", threadId, e.getMessage());
+                consecutiveErrors++;
+                logger.error("Error in worker thread {} (consecutive errors: {}): {}", threadId, consecutiveErrors, e.getMessage());
                 NewRelic.noticeError(e);
-                // Continue running even on errors, but add small delay to prevent tight error loops
+
+                // Exponential backoff: 1s, 2s, 4s, 8s (max 8s)
+                int backoffMs = Math.min(1000 * (1 << (consecutiveErrors - 1)), 8000);
+                logger.warn("Worker thread {} backing off for {}ms after {} consecutive errors", threadId, backoffMs, consecutiveErrors);
+
                 try {
-                    Thread.sleep(1000); // 1 second backoff on error
+                    Thread.sleep(backoffMs);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     break;

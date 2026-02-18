@@ -168,32 +168,75 @@ public class InventoryService {
 
     @Trace
     public void bulkUpdateInventory() {
+        bulkUpdateInventoryWithRetry(3);
+    }
+
+    private void bulkUpdateInventoryWithRetry(int maxRetries) {
         // Randomly adjust inventory for multiple products
         Random random = new Random();
         int updateCount = random.nextInt(20) + 10; // Update 10-30 products
+
+        // Generate product IDs and sort them to prevent deadlocks
+        java.util.List<Long> productIds = new java.util.ArrayList<>();
+        java.util.Map<Long, Integer> adjustments = new java.util.HashMap<>();
+
+        for (int i = 0; i < updateCount; i++) {
+            long productId = random.nextInt(500) + 1;
+            int adjustment = random.nextInt(100) - 50; // Random adjustment between -50 and +50
+            productIds.add(productId);
+            adjustments.put(productId, adjustment);
+        }
+
+        // CRITICAL: Sort product IDs to ensure consistent lock ordering across threads
+        java.util.Collections.sort(productIds);
 
         String sql = "UPDATE INVENTORY SET " +
                      "quantity_available = quantity_available + ?, " +
                      "updated_at = CURRENT_TIMESTAMP " +
                      "WHERE product_id = ?";
 
-        try (Connection conn = dbManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        int attempt = 0;
+        while (attempt < maxRetries) {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            for (int i = 0; i < updateCount; i++) {
-                long productId = random.nextInt(500) + 1;
-                int adjustment = random.nextInt(100) - 50; // Random adjustment between -50 and +50
+                for (Long productId : productIds) {
+                    pstmt.setInt(1, adjustments.get(productId));
+                    pstmt.setLong(2, productId);
+                    pstmt.addBatch();
+                }
 
-                pstmt.setInt(1, adjustment);
-                pstmt.setLong(2, productId);
-                pstmt.addBatch();
+                int[] results = pstmt.executeBatch();
+                logger.debug("Bulk updated inventory for {} products", results.length);
+                return; // Success - exit method
+
+            } catch (SQLException e) {
+                attempt++;
+
+                // Check for deadlock (ORA-00060) or resource busy (ORA-00054)
+                boolean isDeadlock = e.getMessage().contains("ORA-00060") || e.getMessage().contains("deadlock");
+                boolean isResourceBusy = e.getMessage().contains("ORA-00054") || e.getMessage().contains("resource busy");
+
+                if ((isDeadlock || isResourceBusy) && attempt < maxRetries) {
+                    // Exponential backoff: wait 100ms, 200ms, 400ms
+                    int backoffMs = 100 * (1 << (attempt - 1));
+                    logger.warn("Deadlock/resource busy detected in bulk inventory update (attempt {}/{}), retrying in {}ms",
+                               attempt, maxRetries, backoffMs);
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        logger.error("Interrupted during retry backoff", ie);
+                        return;
+                    }
+                } else {
+                    // Either not a retryable error, or we've exhausted retries
+                    logger.error("Error in bulk inventory update (attempt {}/{})", attempt, maxRetries, e);
+                    return;
+                }
             }
-
-            int[] results = pstmt.executeBatch();
-            logger.debug("Bulk updated inventory for {} products", results.length);
-
-        } catch (SQLException e) {
-            logger.error("Error in bulk inventory update", e);
         }
+
+        logger.error("Failed to complete bulk inventory update after {} attempts", maxRetries);
     }
 }
