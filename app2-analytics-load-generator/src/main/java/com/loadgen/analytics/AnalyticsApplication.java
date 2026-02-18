@@ -2,10 +2,12 @@ package com.loadgen.analytics;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.web.client.RestTemplate;
 
@@ -17,11 +19,9 @@ import org.springframework.web.client.RestTemplate;
 public class AnalyticsApplication {
     private static final Logger logger = LoggerFactory.getLogger(AnalyticsApplication.class);
 
-    private final AnalyticsLoadGenerator loadGenerator;
-
-    public AnalyticsApplication(AnalyticsLoadGenerator loadGenerator) {
-        this.loadGenerator = loadGenerator;
-    }
+    @Autowired
+    @Lazy
+    private AnalyticsLoadGenerator loadGenerator;
 
     public static void main(String[] args) {
         logger.info("=".repeat(80));
