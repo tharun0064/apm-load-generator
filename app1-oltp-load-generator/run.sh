@@ -37,44 +37,27 @@ echo "Pool Max: ${DB_POOL_MAX:-100}"
 echo "=========================================="
 echo ""
 
-# Check if New Relic should be enabled
-if [ -f "newrelic.jar" ] && [ "${NEW_RELIC_ENABLED}" = "true" ] && [ "${NEW_RELIC_LICENSE_KEY}" != "YOUR_LICENSE_KEY_HERE" ] && [ ! -z "${NEW_RELIC_LICENSE_KEY}" ]; then
+# Check if New Relic agent is available
+if [ -f "newrelic.jar" ] && [ -f "newrelic.yml" ]; then
     echo "=========================================="
     echo "New Relic Agent: ENABLED"
     echo "=========================================="
-    echo "License Key: ${NEW_RELIC_LICENSE_KEY:0:15}...${NEW_RELIC_LICENSE_KEY: -4}"
-    echo "App Name: ${NEW_RELIC_APP_NAME}"
-    echo "Log Level: ${NEW_RELIC_LOG_LEVEL}"
-    echo "Distributed Tracing: ${NEW_RELIC_DISTRIBUTED_TRACING}"
+    echo "Config File: ./newrelic.yml"
+    echo "Agent JAR: ./newrelic.jar"
+    echo "Note: Configuration is read from newrelic.yml"
     echo "=========================================="
     echo ""
 
-    # Build Java command with New Relic configuration
-    JAVA_OPTS="-javaagent:newrelic.jar"
-    JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.license_key=${NEW_RELIC_LICENSE_KEY}"
-    JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.app_name=${NEW_RELIC_APP_NAME}"
-    JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.log_level=${NEW_RELIC_LOG_LEVEL}"
-    JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.distributed_tracing.enabled=${NEW_RELIC_DISTRIBUTED_TRACING}"
-
-    # Add staging collector host if configured
-    if [ ! -z "${NEW_RELIC_HOST}" ]; then
-        JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.host=${NEW_RELIC_HOST}"
-        echo "Collector Host: ${NEW_RELIC_HOST}"
-    fi
-
-    JAVA_OPTS="$JAVA_OPTS -Dthreads=${THREADS}"
-
-    java $JAVA_OPTS -jar "$JAR_FILE"
+    java -javaagent:newrelic.jar -Dthreads=${THREADS} -jar "$JAR_FILE"
 else
     echo "=========================================="
     echo "New Relic Agent: DISABLED"
     echo "=========================================="
     if [ ! -f "newrelic.jar" ]; then
         echo "Reason: newrelic.jar not found"
-    elif [ "${NEW_RELIC_ENABLED}" != "true" ]; then
-        echo "Reason: NEW_RELIC_ENABLED=${NEW_RELIC_ENABLED}"
-    elif [ -z "${NEW_RELIC_LICENSE_KEY}" ] || [ "${NEW_RELIC_LICENSE_KEY}" = "YOUR_LICENSE_KEY_HERE" ]; then
-        echo "Reason: NEW_RELIC_LICENSE_KEY not configured in .env"
+    fi
+    if [ ! -f "newrelic.yml" ]; then
+        echo "Reason: newrelic.yml not found"
     fi
     echo "=========================================="
     echo ""
