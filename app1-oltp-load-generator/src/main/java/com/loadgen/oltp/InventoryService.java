@@ -96,9 +96,10 @@ public class InventoryService {
 
     @Trace
     public void reserveInventory(long orderId) {
+        // Fixed: Use SUM() to handle multiple items with same product_id
         String sql = "UPDATE INVENTORY SET " +
                      "quantity_reserved = quantity_reserved + (" +
-                     "  SELECT oi.quantity FROM ORDER_ITEMS oi WHERE oi.order_id = ? AND oi.product_id = INVENTORY.product_id" +
+                     "  SELECT SUM(oi.quantity) FROM ORDER_ITEMS oi WHERE oi.order_id = ? AND oi.product_id = INVENTORY.product_id" +
                      "), updated_at = CURRENT_TIMESTAMP " +
                      "WHERE product_id IN (" +
                      "  SELECT product_id FROM ORDER_ITEMS WHERE order_id = ?" +
@@ -121,9 +122,10 @@ public class InventoryService {
 
     @Trace
     public void releaseInventory(long orderId) {
+        // Fixed: Use SUM() to handle multiple items with same product_id
         String sql = "UPDATE INVENTORY SET " +
                      "quantity_reserved = GREATEST(0, quantity_reserved - (" +
-                     "  SELECT oi.quantity FROM ORDER_ITEMS oi WHERE oi.order_id = ? AND oi.product_id = INVENTORY.product_id" +
+                     "  SELECT SUM(oi.quantity) FROM ORDER_ITEMS oi WHERE oi.order_id = ? AND oi.product_id = INVENTORY.product_id" +
                      ")), updated_at = CURRENT_TIMESTAMP " +
                      "WHERE product_id IN (" +
                      "  SELECT product_id FROM ORDER_ITEMS WHERE order_id = ?" +

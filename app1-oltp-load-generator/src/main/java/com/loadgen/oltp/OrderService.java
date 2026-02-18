@@ -221,25 +221,37 @@ public class OrderService {
         int totalDeleted = 0;
 
         try (Connection conn = dbManager.getConnection()) {
-            // Delete order items first
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteItemsSql)) {
-                pstmt.setInt(1, daysToKeep);
-                int itemsDeleted = pstmt.executeUpdate();
-                logger.debug("Deleted {} old order items", itemsDeleted);
-            }
+            // Fixed: Use transaction to prevent race conditions
+            conn.setAutoCommit(false);
 
-            // Delete transactions
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteTransactionsSql)) {
-                pstmt.setInt(1, daysToKeep);
-                int txnDeleted = pstmt.executeUpdate();
-                logger.debug("Deleted {} old transactions", txnDeleted);
-            }
+            try {
+                // Delete order items first
+                try (PreparedStatement pstmt = conn.prepareStatement(deleteItemsSql)) {
+                    pstmt.setInt(1, daysToKeep);
+                    int itemsDeleted = pstmt.executeUpdate();
+                    logger.debug("Deleted {} old order items", itemsDeleted);
+                }
 
-            // Delete orders
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteOrdersSql)) {
-                pstmt.setInt(1, daysToKeep);
-                totalDeleted = pstmt.executeUpdate();
-                logger.debug("Deleted {} old completed orders (older than {} days)", totalDeleted, daysToKeep);
+                // Delete transactions
+                try (PreparedStatement pstmt = conn.prepareStatement(deleteTransactionsSql)) {
+                    pstmt.setInt(1, daysToKeep);
+                    int txnDeleted = pstmt.executeUpdate();
+                    logger.debug("Deleted {} old transactions", txnDeleted);
+                }
+
+                // Delete orders
+                try (PreparedStatement pstmt = conn.prepareStatement(deleteOrdersSql)) {
+                    pstmt.setInt(1, daysToKeep);
+                    totalDeleted = pstmt.executeUpdate();
+                    logger.debug("Deleted {} old completed orders (older than {} days)", totalDeleted, daysToKeep);
+                }
+
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
             }
 
         } catch (SQLException e) {
@@ -265,22 +277,34 @@ public class OrderService {
         int totalDeleted = 0;
 
         try (Connection conn = dbManager.getConnection()) {
-            // Delete order items
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteItemsSql)) {
-                pstmt.executeUpdate();
-            }
+            // Fixed: Use transaction to prevent race conditions
+            conn.setAutoCommit(false);
 
-            // Delete transactions
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteTransactionsSql)) {
-                pstmt.executeUpdate();
-            }
-
-            // Delete orders
-            try (PreparedStatement pstmt = conn.prepareStatement(deleteOrdersSql)) {
-                totalDeleted = pstmt.executeUpdate();
-                if (totalDeleted > 0) {
-                    logger.debug("Deleted {} cancelled/failed orders", totalDeleted);
+            try {
+                // Delete order items
+                try (PreparedStatement pstmt = conn.prepareStatement(deleteItemsSql)) {
+                    pstmt.executeUpdate();
                 }
+
+                // Delete transactions
+                try (PreparedStatement pstmt = conn.prepareStatement(deleteTransactionsSql)) {
+                    pstmt.executeUpdate();
+                }
+
+                // Delete orders
+                try (PreparedStatement pstmt = conn.prepareStatement(deleteOrdersSql)) {
+                    totalDeleted = pstmt.executeUpdate();
+                    if (totalDeleted > 0) {
+                        logger.debug("Deleted {} cancelled/failed orders", totalDeleted);
+                    }
+                }
+
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
             }
 
         } catch (SQLException e) {
