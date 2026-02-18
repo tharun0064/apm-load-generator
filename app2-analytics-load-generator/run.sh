@@ -49,13 +49,22 @@ if [ -f "newrelic.jar" ] && [ "${NEW_RELIC_ENABLED}" = "true" ] && [ "${NEW_RELI
     echo "=========================================="
     echo ""
 
-    java -javaagent:newrelic.jar \
-         -Dnewrelic.config.license_key="${NEW_RELIC_LICENSE_KEY}" \
-         -Dnewrelic.config.app_name="${NEW_RELIC_APP_NAME}" \
-         -Dnewrelic.config.log_level="${NEW_RELIC_LOG_LEVEL}" \
-         -Dnewrelic.config.distributed_tracing.enabled="${NEW_RELIC_DISTRIBUTED_TRACING}" \
-         -Dthreads=${THREADS} \
-         -jar "$JAR_FILE"
+    # Build Java command with New Relic configuration
+    JAVA_OPTS="-javaagent:newrelic.jar"
+    JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.license_key=${NEW_RELIC_LICENSE_KEY}"
+    JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.app_name=${NEW_RELIC_APP_NAME}"
+    JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.log_level=${NEW_RELIC_LOG_LEVEL}"
+    JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.distributed_tracing.enabled=${NEW_RELIC_DISTRIBUTED_TRACING}"
+
+    # Add staging collector host if configured
+    if [ ! -z "${NEW_RELIC_HOST}" ]; then
+        JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.host=${NEW_RELIC_HOST}"
+        echo "Collector Host: ${NEW_RELIC_HOST}"
+    fi
+
+    JAVA_OPTS="$JAVA_OPTS -Dthreads=${THREADS}"
+
+    java $JAVA_OPTS -jar "$JAR_FILE"
 else
     echo "=========================================="
     echo "New Relic Agent: DISABLED"
