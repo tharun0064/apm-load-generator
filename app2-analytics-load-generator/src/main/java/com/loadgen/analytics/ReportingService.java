@@ -24,35 +24,31 @@ public class ReportingService {
     public void generateExecutiveDashboard() {
         String sql = "SELECT " +
                      "  'Orders' as metric, " +
-                     "  COUNT(o.order_id) as today_count, " +
+                     "  (SELECT COUNT(*) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE)) as today_count, " +
                      "  (SELECT COUNT(*) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE - 1)) as yesterday_count, " +
                      "  (SELECT COUNT(*) FROM oltp_user.ORDERS WHERE order_date >= TRUNC(SYSDATE, 'MM')) as month_to_date " +
-                     "FROM oltp_user.ORDERS o " +
-                     "WHERE TRUNC(o.order_date) = TRUNC(SYSDATE) " +
+                     "FROM DUAL " +
                      "UNION ALL " +
                      "SELECT " +
                      "  'Revenue' as metric, " +
-                     "  ROUND(SUM(o.total_amount), 0) as today_count, " +
+                     "  ROUND((SELECT SUM(total_amount) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE)), 0) as today_count, " +
                      "  ROUND((SELECT SUM(total_amount) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE - 1)), 0) as yesterday_count, " +
                      "  ROUND((SELECT SUM(total_amount) FROM oltp_user.ORDERS WHERE order_date >= TRUNC(SYSDATE, 'MM')), 0) as month_to_date " +
-                     "FROM oltp_user.ORDERS o " +
-                     "WHERE TRUNC(o.order_date) = TRUNC(SYSDATE) " +
+                     "FROM DUAL " +
                      "UNION ALL " +
                      "SELECT " +
                      "  'New Customers' as metric, " +
-                     "  COUNT(c.customer_id) as today_count, " +
+                     "  (SELECT COUNT(*) FROM oltp_user.CUSTOMERS WHERE TRUNC(created_at) = TRUNC(SYSDATE)) as today_count, " +
                      "  (SELECT COUNT(*) FROM oltp_user.CUSTOMERS WHERE TRUNC(created_at) = TRUNC(SYSDATE - 1)) as yesterday_count, " +
                      "  (SELECT COUNT(*) FROM oltp_user.CUSTOMERS WHERE created_at >= TRUNC(SYSDATE, 'MM')) as month_to_date " +
-                     "FROM oltp_user.CUSTOMERS c " +
-                     "WHERE TRUNC(c.created_at) = TRUNC(SYSDATE) " +
+                     "FROM DUAL " +
                      "UNION ALL " +
                      "SELECT " +
                      "  'Avg Order Value' as metric, " +
-                     "  ROUND(AVG(o.total_amount), 2) as today_count, " +
+                     "  ROUND((SELECT AVG(total_amount) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE)), 2) as today_count, " +
                      "  ROUND((SELECT AVG(total_amount) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE - 1)), 2) as yesterday_count, " +
                      "  ROUND((SELECT AVG(total_amount) FROM oltp_user.ORDERS WHERE order_date >= TRUNC(SYSDATE, 'MM')), 2) as month_to_date " +
-                     "FROM oltp_user.ORDERS o " +
-                     "WHERE TRUNC(o.order_date) = TRUNC(SYSDATE)";
+                     "FROM DUAL";
 
         executeReportQuery(sql, "ExecutiveDashboard");
     }
@@ -60,23 +56,22 @@ public class ReportingService {
     @Trace
     public void generateSalesReport() {
         String sql = "SELECT " +
-                     "  TO_CHAR(o.order_date, 'YYYY-MM-DD') as date, " +
+                     "  TO_CHAR(o.order_date, 'YYYY-MM-DD') as order_date, " +
                      "  o.status, " +
                      "  COUNT(DISTINCT o.order_id) as order_count, " +
                      "  COUNT(DISTINCT o.customer_id) as unique_customers, " +
-                     "  SUM(o.total_amount) as gross_revenue, " +
-                     "  SUM(o.tax_amount) as tax_collected, " +
-                     "  SUM(o.shipping_cost) as shipping_revenue, " +
-                     "  SUM(o.total_amount - o.tax_amount - COALESCE(o.shipping_cost, 0)) as net_revenue, " +
-                     "  AVG(o.total_amount) as avg_order_value, " +
-                     "  SUM(oi.quantity) as total_items_sold, " +
-                     "  AVG(oi.quantity) as avg_items_per_order, " +
+                     "  ROUND(SUM(o.total_amount), 2) as gross_revenue, " +
+                     "  ROUND(SUM(o.tax_amount), 2) as tax_collected, " +
+                     "  ROUND(SUM(o.shipping_cost), 2) as shipping_revenue, " +
+                     "  ROUND(SUM(o.total_amount - o.tax_amount - COALESCE(o.shipping_cost, 0)), 2) as net_revenue, " +
+                     "  ROUND(AVG(o.total_amount), 2) as avg_order_value, " +
+                     "  COALESCE(SUM(oi.quantity), 0) as total_items_sold, " +
                      "  COUNT(DISTINCT oi.product_id) as unique_products_sold " +
                      "FROM oltp_user.ORDERS o " +
                      "LEFT JOIN oltp_user.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
                      "WHERE o.order_date >= SYSDATE - 30 " +
                      "GROUP BY TO_CHAR(o.order_date, 'YYYY-MM-DD'), o.status " +
-                     "ORDER BY date DESC, o.status";
+                     "ORDER BY order_date DESC, status";
 
         executeReportQuery(sql, "SalesReport");
     }
