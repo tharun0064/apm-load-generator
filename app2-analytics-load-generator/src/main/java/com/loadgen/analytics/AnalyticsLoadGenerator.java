@@ -4,6 +4,9 @@ import com.newrelic.api.agent.NewRelic;
 import com.newrelic.api.agent.Trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,41 +14,38 @@ import java.util.Random;
 import java.util.concurrent.*;
 
 /**
- * Analytics Load Generator - Simulates heavy analytical queries
- * This application generates massive analytical load with:
+ * Analytics Load Generator - Simulates heavy analytical queries via REST APIs
+ * This application generates massive analytical load by calling REST endpoints:
  * - Complex multi-table joins
  * - Aggregations and grouping
  * - Large data scans
  * - Reporting queries
  * - Data warehouse style operations
  */
+@Component
 public class AnalyticsLoadGenerator {
     private static final Logger logger = LoggerFactory.getLogger(AnalyticsLoadGenerator.class);
     private static final Random random = new Random();
 
+    private final RestTemplate restTemplate;
     private final DatabaseManager dbManager;
-    private final SalesAnalyticsService salesAnalytics;
-    private final CustomerAnalyticsService customerAnalytics;
-    private final ProductAnalyticsService productAnalytics;
-    private final ReportingService reportingService;
-    private final DataWarehouseService dataWarehouseService;
-
     private final int numThreads;
+    private final String apiBaseUrl;
     private final ExecutorService executorService;
     private volatile boolean running = true;
 
-    public AnalyticsLoadGenerator(int numThreads) {
+    public AnalyticsLoadGenerator(RestTemplate restTemplate,
+                                  DatabaseManager dbManager,
+                                  @Value("${threads:10}") int numThreads,
+                                  @Value("${api.base.url:http://localhost:8081}") String apiBaseUrl) {
+        this.restTemplate = restTemplate;
+        this.dbManager = dbManager;
         this.numThreads = numThreads;
+        this.apiBaseUrl = apiBaseUrl;
         this.executorService = Executors.newFixedThreadPool(numThreads);
 
-        this.dbManager = new DatabaseManager();
-        this.salesAnalytics = new SalesAnalyticsService(dbManager);
-        this.customerAnalytics = new CustomerAnalyticsService(dbManager);
-        this.productAnalytics = new ProductAnalyticsService(dbManager);
-        this.reportingService = new ReportingService(dbManager);
-        this.dataWarehouseService = new DataWarehouseService(dbManager);
-
         logger.info("Analytics Load Generator initialized with {} threads", numThreads);
+        logger.info("API Base URL: {}", apiBaseUrl);
         NewRelic.setTransactionName("AnalyticsLoadGenerator", "Initialize");
     }
 
@@ -155,29 +155,29 @@ public class AnalyticsLoadGenerator {
 
     @Trace
     private void salesAnalyticsWorkflow() {
-        NewRelic.setTransactionName("AnalyticsLoadGenerator", "SalesAnalytics");
-
         try {
-            // Run various sales analytics queries
             int choice = random.nextInt(5);
+            String url;
 
             switch (choice) {
                 case 0:
-                    salesAnalytics.getDailySalesSummary();
+                    url = apiBaseUrl + "/api/analytics/sales/daily";
                     break;
                 case 1:
-                    salesAnalytics.getMonthlySalesTrend();
+                    url = apiBaseUrl + "/api/analytics/sales/monthly";
                     break;
                 case 2:
-                    salesAnalytics.getSalesByCategory();
+                    url = apiBaseUrl + "/api/analytics/sales/by-category";
                     break;
                 case 3:
-                    salesAnalytics.getTopSellingProducts(20);
+                    url = apiBaseUrl + "/api/analytics/sales/top-products?limit=20";
                     break;
-                case 4:
-                    salesAnalytics.getRevenueByPaymentMethod();
+                default:
+                    url = apiBaseUrl + "/api/analytics/sales/by-payment-method";
                     break;
             }
+
+            restTemplate.getForObject(url, String.class);
 
         } catch (Exception e) {
             logger.error("Error in salesAnalyticsWorkflow", e);
@@ -187,28 +187,29 @@ public class AnalyticsLoadGenerator {
 
     @Trace
     private void customerAnalyticsWorkflow() {
-        NewRelic.setTransactionName("AnalyticsLoadGenerator", "CustomerAnalytics");
-
         try {
             int choice = random.nextInt(5);
+            String url;
 
             switch (choice) {
                 case 0:
-                    customerAnalytics.getCustomerSegmentation();
+                    url = apiBaseUrl + "/api/analytics/customers/segmentation";
                     break;
                 case 1:
-                    customerAnalytics.getCustomerLifetimeValue();
+                    url = apiBaseUrl + "/api/analytics/customers/lifetime-value";
                     break;
                 case 2:
-                    customerAnalytics.getCustomerRetentionRate();
+                    url = apiBaseUrl + "/api/analytics/customers/retention";
                     break;
                 case 3:
-                    customerAnalytics.getHighValueCustomers(50);
+                    url = apiBaseUrl + "/api/analytics/customers/high-value?limit=50";
                     break;
-                case 4:
-                    customerAnalytics.getCustomerPurchaseFrequency();
+                default:
+                    url = apiBaseUrl + "/api/analytics/customers/purchase-frequency";
                     break;
             }
+
+            restTemplate.getForObject(url, String.class);
 
         } catch (Exception e) {
             logger.error("Error in customerAnalyticsWorkflow", e);
@@ -218,28 +219,29 @@ public class AnalyticsLoadGenerator {
 
     @Trace
     private void productAnalyticsWorkflow() {
-        NewRelic.setTransactionName("AnalyticsLoadGenerator", "ProductAnalytics");
-
         try {
             int choice = random.nextInt(5);
+            String url;
 
             switch (choice) {
                 case 0:
-                    productAnalytics.getProductPerformanceReport();
+                    url = apiBaseUrl + "/api/analytics/products/performance";
                     break;
                 case 1:
-                    productAnalytics.getInventoryTurnoverRate();
+                    url = apiBaseUrl + "/api/analytics/products/inventory-turnover";
                     break;
                 case 2:
-                    productAnalytics.getSlowMovingProducts();
+                    url = apiBaseUrl + "/api/analytics/products/slow-moving";
                     break;
                 case 3:
-                    productAnalytics.getProfitMarginByCategory();
+                    url = apiBaseUrl + "/api/analytics/products/profit-margin";
                     break;
-                case 4:
-                    productAnalytics.getProductAffinityAnalysis();
+                default:
+                    url = apiBaseUrl + "/api/analytics/products/affinity";
                     break;
             }
+
+            restTemplate.getForObject(url, String.class);
 
         } catch (Exception e) {
             logger.error("Error in productAnalyticsWorkflow", e);
@@ -249,25 +251,26 @@ public class AnalyticsLoadGenerator {
 
     @Trace
     private void reportingWorkflow() {
-        NewRelic.setTransactionName("AnalyticsLoadGenerator", "Reporting");
-
         try {
             int choice = random.nextInt(4);
+            String url;
 
             switch (choice) {
                 case 0:
-                    reportingService.generateExecutiveDashboard();
+                    url = apiBaseUrl + "/api/analytics/reports/executive";
                     break;
                 case 1:
-                    reportingService.generateSalesReport();
+                    url = apiBaseUrl + "/api/analytics/reports/sales";
                     break;
                 case 2:
-                    reportingService.generateInventoryReport();
+                    url = apiBaseUrl + "/api/analytics/reports/inventory";
                     break;
-                case 3:
-                    reportingService.generateCustomerReport();
+                default:
+                    url = apiBaseUrl + "/api/analytics/reports/customer";
                     break;
             }
+
+            restTemplate.getForObject(url, String.class);
 
         } catch (Exception e) {
             logger.error("Error in reportingWorkflow", e);
@@ -277,28 +280,32 @@ public class AnalyticsLoadGenerator {
 
     @Trace
     private void dataWarehouseWorkflow() {
-        NewRelic.setTransactionName("AnalyticsLoadGenerator", "DataWarehouse");
-
         try {
             int choice = random.nextInt(5);
+            String url;
 
             switch (choice) {
                 case 0:
-                    dataWarehouseService.aggregateSalesData();
+                    url = apiBaseUrl + "/api/analytics/warehouse/aggregate-sales";
+                    restTemplate.postForObject(url, null, String.class);
                     break;
                 case 1:
-                    dataWarehouseService.aggregateCustomerData();
+                    url = apiBaseUrl + "/api/analytics/warehouse/aggregate-customers";
+                    restTemplate.postForObject(url, null, String.class);
                     break;
                 case 2:
-                    dataWarehouseService.aggregateProductData();
+                    url = apiBaseUrl + "/api/analytics/warehouse/aggregate-products";
+                    restTemplate.postForObject(url, null, String.class);
                     break;
                 case 3:
                     // VERY HEAVY - Full table scan
-                    dataWarehouseService.performFullTableScan();
+                    url = apiBaseUrl + "/api/analytics/warehouse/full-scan";
+                    restTemplate.getForObject(url, String.class);
                     break;
-                case 4:
+                default:
                     // VERY HEAVY - Complex 5-table join
-                    dataWarehouseService.performComplexJoinQuery();
+                    url = apiBaseUrl + "/api/analytics/warehouse/complex-join";
+                    restTemplate.getForObject(url, String.class);
                     break;
             }
 
@@ -329,20 +336,6 @@ public class AnalyticsLoadGenerator {
             executorService.shutdownNow();
             Thread.currentThread().interrupt();
         }
-        dbManager.close();
         logger.info("Analytics Load Generator shutdown complete");
-    }
-
-    public static void main(String[] args) {
-        // Configure thread count from environment or default to 20 (fewer than OLTP)
-        int numThreads = Integer.parseInt(System.getProperty("threads", "20"));
-
-        logger.info("=".repeat(80));
-        logger.info("Analytics Load Generator Starting");
-        logger.info("Threads: {}", numThreads);
-        logger.info("=".repeat(80));
-
-        AnalyticsLoadGenerator generator = new AnalyticsLoadGenerator(numThreads);
-        generator.start();
     }
 }

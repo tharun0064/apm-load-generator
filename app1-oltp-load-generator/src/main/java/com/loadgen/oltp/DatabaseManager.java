@@ -4,34 +4,50 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
-import java.io.IOException;
-import java.io.InputStream;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Properties;
 
 /**
  * Database Connection Manager using HikariCP
  */
+@Component
 public class DatabaseManager {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseManager.class);
-    private final HikariDataSource dataSource;
+    private HikariDataSource dataSource;
 
-    public DatabaseManager() {
-        Properties props = loadProperties();
+    @Value("${db.url}")
+    private String dbUrl;
 
+    @Value("${db.username}")
+    private String dbUsername;
+
+    @Value("${db.password}")
+    private String dbPassword;
+
+    @Value("${db.pool.max:30}")
+    private int maxPoolSize;
+
+    @Value("${db.pool.min:10}")
+    private int minIdle;
+
+    @PostConstruct
+    public void initialize() {
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl(props.getProperty("db.url"));
-        config.setUsername(props.getProperty("db.username"));
-        config.setPassword(props.getProperty("db.password"));
+        config.setJdbcUrl(dbUrl);
+        config.setUsername(dbUsername);
+        config.setPassword(dbPassword);
 
         // Connection pool settings for high load
-        config.setMaximumPoolSize(Integer.parseInt(props.getProperty("db.pool.max", "100")));
-        config.setMinimumIdle(Integer.parseInt(props.getProperty("db.pool.min", "20")));
-        config.setConnectionTimeout(Long.parseLong(props.getProperty("db.timeout", "30000")));
-        config.setIdleTimeout(Long.parseLong(props.getProperty("db.idle.timeout", "600000")));
-        config.setMaxLifetime(Long.parseLong(props.getProperty("db.max.lifetime", "1800000")));
+        config.setMaximumPoolSize(maxPoolSize);
+        config.setMinimumIdle(minIdle);
+        config.setConnectionTimeout(30000);
+        config.setIdleTimeout(600000);
+        config.setMaxLifetime(1800000);
 
         // CRITICAL: Prevent threads from hanging indefinitely
         config.setValidationTimeout(5000);  // 5 second validation timeout
@@ -53,32 +69,8 @@ public class DatabaseManager {
         config.setPoolName("OltpConnectionPool");
 
         this.dataSource = new HikariDataSource(config);
-        logger.info("Database connection pool initialized: {}", config.getJdbcUrl());
-    }
-
-    private Properties loadProperties() {
-        Properties props = new Properties();
-        try (InputStream input = getClass().getClassLoader().getResourceAsStream("application.properties")) {
-            if (input == null) {
-                logger.warn("application.properties not found, using environment variables");
-                loadFromEnvironment(props);
-            } else {
-                props.load(input);
-            }
-        } catch (IOException e) {
-            logger.error("Error loading properties", e);
-            loadFromEnvironment(props);
-        }
-        return props;
-    }
-
-    private void loadFromEnvironment(Properties props) {
-        props.setProperty("db.url", System.getenv().getOrDefault("DB_URL",
-                "jdbc:oracle:thin:@localhost:1521:ORCL"));
-        props.setProperty("db.username", System.getenv().getOrDefault("DB_USERNAME", "oltp_user"));
-        props.setProperty("db.password", System.getenv().getOrDefault("DB_PASSWORD", "OltpPass123!"));
-        props.setProperty("db.pool.max", System.getenv().getOrDefault("DB_POOL_MAX", "100"));
-        props.setProperty("db.pool.min", System.getenv().getOrDefault("DB_POOL_MIN", "20"));
+        logger.info("Database connection pool initialized: {} (max: {}, min: {})",
+                    config.getJdbcUrl(), maxPoolSize, minIdle);
     }
 
     public Connection getConnection() throws SQLException {
@@ -106,6 +98,7 @@ public class DatabaseManager {
         return dataSource.getHikariPoolMXBean().getTotalConnections();
     }
 
+    @PreDestroy
     public void close() {
         if (dataSource != null && !dataSource.isClosed()) {
             dataSource.close();

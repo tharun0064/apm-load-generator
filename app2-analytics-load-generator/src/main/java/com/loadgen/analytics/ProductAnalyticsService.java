@@ -3,6 +3,7 @@ package com.loadgen.analytics;
 import com.newrelic.api.agent.Trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -12,6 +13,7 @@ import java.sql.SQLException;
 /**
  * Product Analytics Service - Heavy product analysis queries
  */
+@Service
 public class ProductAnalyticsService {
     private static final Logger logger = LoggerFactory.getLogger(ProductAnalyticsService.class);
     private final DatabaseManager dbManager;

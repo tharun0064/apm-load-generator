@@ -4,6 +4,9 @@ import com.newrelic.api.agent.NewRelic;
 import com.newrelic.api.agent.Trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,43 +14,38 @@ import java.util.Random;
 import java.util.concurrent.*;
 
 /**
- * OLTP Load Generator - Simulates high-frequency transactional operations
- * This application generates massive load with various database operations:
+ * OLTP Load Generator - Simulates high-frequency transactional operations via REST APIs
+ * This application generates massive load by making HTTP calls to REST endpoints:
  * - Customer creation and updates
  * - Order processing
  * - Inventory management
  * - Transaction logging
  * - Session tracking
  */
+@Component
 public class OltpLoadGenerator {
     private static final Logger logger = LoggerFactory.getLogger(OltpLoadGenerator.class);
     private static final Random random = new Random();
 
+    private final RestTemplate restTemplate;
     private final DatabaseManager dbManager;
-    private final CustomerService customerService;
-    private final OrderService orderService;
-    private final ProductService productService;
-    private final InventoryService inventoryService;
-    private final TransactionService transactionService;
-    private final SessionService sessionService;
-
     private final int numThreads;
+    private final String apiBaseUrl;
     private final ExecutorService executorService;
     private volatile boolean running = true;
 
-    public OltpLoadGenerator(int numThreads) {
+    public OltpLoadGenerator(RestTemplate restTemplate,
+                            DatabaseManager dbManager,
+                            @Value("${threads:25}") int numThreads,
+                            @Value("${api.base.url:http://localhost:8080}") String apiBaseUrl) {
+        this.restTemplate = restTemplate;
+        this.dbManager = dbManager;
         this.numThreads = numThreads;
+        this.apiBaseUrl = apiBaseUrl;
         this.executorService = Executors.newFixedThreadPool(numThreads);
 
-        this.dbManager = new DatabaseManager();
-        this.customerService = new CustomerService(dbManager);
-        this.orderService = new OrderService(dbManager);
-        this.productService = new ProductService(dbManager);
-        this.inventoryService = new InventoryService(dbManager);
-        this.transactionService = new TransactionService(dbManager);
-        this.sessionService = new SessionService(dbManager);
-
         logger.info("OLTP Load Generator initialized with {} threads", numThreads);
+        logger.info("API Base URL: {}", apiBaseUrl);
         NewRelic.setTransactionName("OltpLoadGenerator", "Initialize");
     }
 
@@ -166,35 +164,14 @@ public class OltpLoadGenerator {
 
     @Trace
     private void createOrderWorkflow() {
-        NewRelic.setTransactionName("OltpLoadGenerator", "CreateOrder");
-
         try {
-            // 1. Get random customer
+            // Get random customer
             long customerId = random.nextInt(1000) + 1;
-
-            // 2. Create order
-            long orderId = orderService.createOrder(customerId);
-            NewRelic.addCustomParameter("orderId", orderId);
-
-            // 3. Add 1-5 items to order
             int numItems = random.nextInt(5) + 1;
-            for (int i = 0; i < numItems; i++) {
-                long productId = random.nextInt(500) + 1;
-                int quantity = random.nextInt(5) + 1;
-                orderService.addOrderItem(orderId, productId, quantity);
-            }
 
-            // 4. Update order total
-            orderService.calculateOrderTotal(orderId);
-
-            // 5. Create transaction record
-            transactionService.createTransaction(orderId, "PAYMENT");
-
-            // 6. Update inventory
-            inventoryService.reserveInventory(orderId);
-
-            // 7. Log audit
-            orderService.logAudit("ORDERS", orderId, "CREATE");
+            // Call REST API to create order
+            String url = apiBaseUrl + "/api/orders/create?customerId=" + customerId + "&numItems=" + numItems;
+            restTemplate.postForObject(url, null, String.class);
 
         } catch (Exception e) {
             logger.error("Error in createOrderWorkflow", e);
@@ -204,21 +181,23 @@ public class OltpLoadGenerator {
 
     @Trace
     private void updateCustomerWorkflow() {
-        NewRelic.setTransactionName("OltpLoadGenerator", "UpdateCustomer");
-
         try {
             long customerId = random.nextInt(1000) + 1;
 
-            // Update customer loyalty points
-            customerService.updateLoyaltyPoints(customerId, random.nextInt(100));
+            // Update customer loyalty points via REST API
+            int points = random.nextInt(100);
+            String url = apiBaseUrl + "/api/customers/" + customerId + "/loyalty?points=" + points;
+            restTemplate.put(url, null);
 
-            // Update customer type randomly
+            // Upgrade customer type randomly
             if (random.nextInt(10) == 0) {
-                customerService.upgradeCustomerType(customerId);
+                String upgradeUrl = apiBaseUrl + "/api/customers/" + customerId + "/upgrade";
+                restTemplate.put(upgradeUrl, null);
             }
 
             // Log customer access
-            customerService.logCustomerAccess(customerId);
+            String logUrl = apiBaseUrl + "/api/customers/" + customerId + "/access-log";
+            restTemplate.postForObject(logUrl, null, String.class);
 
         } catch (Exception e) {
             logger.error("Error in updateCustomerWorkflow", e);
@@ -228,21 +207,12 @@ public class OltpLoadGenerator {
 
     @Trace
     private void inventoryCheckWorkflow() {
-        NewRelic.setTransactionName("OltpLoadGenerator", "InventoryCheck");
-
         try {
             long productId = random.nextInt(500) + 1;
 
-            // Check inventory levels
-            int available = inventoryService.checkAvailability(productId);
-
-            // Restock if low
-            if (available < 100) {
-                inventoryService.restockInventory(productId, random.nextInt(500) + 100);
-            }
-
-            // Update inventory location
-            inventoryService.updateWarehouseLocation(productId);
+            // Check inventory via REST API (also auto-restocks if low)
+            String url = apiBaseUrl + "/api/inventory/" + productId + "/check";
+            restTemplate.getForObject(url, String.class);
 
         } catch (Exception e) {
             logger.error("Error in inventoryCheckWorkflow", e);
@@ -252,22 +222,13 @@ public class OltpLoadGenerator {
 
     @Trace
     private void processTransactionWorkflow() {
-        NewRelic.setTransactionName("OltpLoadGenerator", "ProcessTransaction");
-
         try {
-            // Get random recent order
-            long orderId = Math.max(1, orderService.getMaxOrderId() - random.nextInt(100));
+            // Get random recent order ID
+            long orderId = random.nextInt(1000) + 1;
 
-            // Process payment
-            boolean success = transactionService.processPayment(orderId);
-
-            if (success) {
-                // Update order status
-                orderService.updateOrderStatus(orderId, "COMPLETED");
-            } else {
-                // Handle failed transaction
-                orderService.updateOrderStatus(orderId, "PAYMENT_FAILED");
-            }
+            // Process payment via REST API
+            String url = apiBaseUrl + "/api/transactions/process?orderId=" + orderId;
+            restTemplate.postForObject(url, null, String.class);
 
         } catch (Exception e) {
             logger.error("Error in processTransactionWorkflow", e);
@@ -277,20 +238,17 @@ public class OltpLoadGenerator {
 
     @Trace
     private void sessionManagementWorkflow() {
-        NewRelic.setTransactionName("OltpLoadGenerator", "SessionManagement");
-
         try {
             long customerId = random.nextInt(1000) + 1;
 
-            // Create or update session
-            String sessionId = sessionService.createSession(customerId);
-
-            // Update session activity
-            sessionService.updateSessionActivity(sessionId);
+            // Create session via REST API
+            String url = apiBaseUrl + "/api/sessions/create?customerId=" + customerId;
+            restTemplate.postForObject(url, null, String.class);
 
             // Randomly expire old sessions
             if (random.nextInt(10) == 0) {
-                sessionService.expireOldSessions();
+                String expireUrl = apiBaseUrl + "/api/sessions/expire";
+                restTemplate.delete(expireUrl);
             }
 
         } catch (Exception e) {
@@ -301,19 +259,20 @@ public class OltpLoadGenerator {
 
     @Trace
     private void productOperationsWorkflow() {
-        NewRelic.setTransactionName("OltpLoadGenerator", "ProductOperations");
-
         try {
             long productId = random.nextInt(500) + 1;
 
-            // Update product price
-            productService.updatePrice(productId);
+            // Update product price via REST API
+            String updateUrl = apiBaseUrl + "/api/products/" + productId + "/price";
+            restTemplate.put(updateUrl, null);
 
             // Query product details
-            productService.getProductDetails(productId);
+            String getUrl = apiBaseUrl + "/api/products/" + productId;
+            restTemplate.getForObject(getUrl, String.class);
 
             // Search products by category
-            productService.searchByCategory();
+            String searchUrl = apiBaseUrl + "/api/products/search";
+            restTemplate.getForObject(searchUrl, String.class);
 
         } catch (Exception e) {
             logger.error("Error in productOperationsWorkflow", e);
@@ -323,20 +282,10 @@ public class OltpLoadGenerator {
 
     @Trace
     private void deleteOldDataWorkflow() {
-        NewRelic.setTransactionName("OltpLoadGenerator", "DeleteOldData");
-
         try {
-            // Delete old completed orders to prevent data buildup
-            orderService.deleteOldCompletedOrders(30); // Keep last 30 days only
-
-            // Delete expired sessions
-            sessionService.deleteExpiredSessions();
-
-            // Clean up old audit logs
-            orderService.deleteOldAuditLogs(7); // Keep last 7 days
-
-            // Delete cancelled/failed orders
-            orderService.deleteCancelledOrders();
+            // Delete old orders via REST API
+            String url = apiBaseUrl + "/api/orders/old?daysToKeep=30";
+            restTemplate.delete(url);
 
         } catch (Exception e) {
             logger.error("Error in deleteOldDataWorkflow", e);
@@ -346,29 +295,11 @@ public class OltpLoadGenerator {
 
     @Trace
     private void bulkInsertWorkflow() {
-        NewRelic.setTransactionName("OltpLoadGenerator", "BulkInsert");
-
         try {
-            // Bulk create multiple orders at once
+            // Bulk create multiple orders at once via REST API
             int batchSize = random.nextInt(5) + 3; // 3-7 orders at once
-
-            for (int i = 0; i < batchSize; i++) {
-                long customerId = random.nextInt(1000) + 1;
-                long orderId = orderService.createOrder(customerId);
-
-                // Add items to each order
-                int numItems = random.nextInt(3) + 1;
-                for (int j = 0; j < numItems; j++) {
-                    long productId = random.nextInt(500) + 1;
-                    int quantity = random.nextInt(3) + 1;
-                    orderService.addOrderItem(orderId, productId, quantity);
-                }
-
-                orderService.calculateOrderTotal(orderId);
-            }
-
-            // Bulk update inventory
-            inventoryService.bulkUpdateInventory();
+            String url = apiBaseUrl + "/api/orders/bulk?batchSize=" + batchSize;
+            restTemplate.postForObject(url, null, String.class);
 
         } catch (Exception e) {
             logger.error("Error in bulkInsertWorkflow", e);
@@ -397,20 +328,6 @@ public class OltpLoadGenerator {
             executorService.shutdownNow();
             Thread.currentThread().interrupt();
         }
-        dbManager.close();
         logger.info("OLTP Load Generator shutdown complete");
-    }
-
-    public static void main(String[] args) {
-        // Configure thread count from environment or default to 50
-        int numThreads = Integer.parseInt(System.getProperty("threads", "50"));
-
-        logger.info("=".repeat(80));
-        logger.info("OLTP Load Generator Starting");
-        logger.info("Threads: {}", numThreads);
-        logger.info("=".repeat(80));
-
-        OltpLoadGenerator generator = new OltpLoadGenerator(numThreads);
-        generator.start();
     }
 }

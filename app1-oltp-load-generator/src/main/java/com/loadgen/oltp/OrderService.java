@@ -3,6 +3,7 @@ package com.loadgen.oltp;
 import com.newrelic.api.agent.Trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.util.Random;
@@ -10,6 +11,7 @@ import java.util.Random;
 /**
  * Order Service - Handles order-related operations
  */
+@Service
 public class OrderService {
     private static final Logger logger = LoggerFactory.getLogger(OrderService.class);
     private final DatabaseManager dbManager;

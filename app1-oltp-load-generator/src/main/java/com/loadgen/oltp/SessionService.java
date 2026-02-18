@@ -3,6 +3,7 @@ package com.loadgen.oltp;
 import com.newrelic.api.agent.Trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -13,6 +14,7 @@ import java.util.UUID;
 /**
  * Session Service - Handles user session operations
  */
+@Service
 public class SessionService {
     private static final Logger logger = LoggerFactory.getLogger(SessionService.class);
     private final DatabaseManager dbManager;

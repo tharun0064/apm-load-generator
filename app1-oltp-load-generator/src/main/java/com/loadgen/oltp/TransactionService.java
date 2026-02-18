@@ -3,6 +3,7 @@ package com.loadgen.oltp;
 import com.newrelic.api.agent.Trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.util.Random;
@@ -11,6 +12,7 @@ import java.util.UUID;
 /**
  * Transaction Service - Handles payment transaction operations
  */
+@Service
 public class TransactionService {
     private static final Logger logger = LoggerFactory.getLogger(TransactionService.class);
     private final DatabaseManager dbManager;
