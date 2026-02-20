@@ -36,7 +36,7 @@ public class OltpLoadGenerator {
 
     public OltpLoadGenerator(RestTemplate restTemplate,
                             DatabaseManager dbManager,
-                            @Value("${threads:25}") int numThreads,
+                            @Value("${threads:3}") int numThreads,
                             @Value("${api.base.url:http://localhost:8080}") String apiBaseUrl) {
         this.restTemplate = restTemplate;
         this.dbManager = dbManager;
@@ -94,46 +94,46 @@ public class OltpLoadGenerator {
 
         while (running) {
             try {
-                // Check if it's time for a 10-second break (after 30-60 seconds of work)
+                // Check if it's time for a break (after 15-30 seconds of work)
                 long currentTime = System.currentTimeMillis();
                 long timeSinceBreak = currentTime - lastBreakTime;
 
-                // Take a break every 30-60 seconds (randomized per thread to avoid all threads breaking at once)
-                int breakInterval = 30000 + random.nextInt(30000); // 30-60 seconds
+                // Take a break every 15-30 seconds (randomized per thread to avoid all threads breaking at once)
+                int breakInterval = 15000 + random.nextInt(15000); // 15-30 seconds
                 if (timeSinceBreak > breakInterval) {
-                    logger.info("Worker thread {} taking 10-second break after {} operations", threadId, cycleOperations);
-                    Thread.sleep(10000); // 10 second break
+                    logger.info("Worker thread {} taking 30-second break after {} operations", threadId, cycleOperations);
+                    Thread.sleep(30000); // 30 second break
                     lastBreakTime = System.currentTimeMillis();
                     cycleOperations = 0;
                     logger.info("Worker thread {} resuming work", threadId);
                 }
 
-                // Randomly select operation type with weighted distribution
+                // Randomly select operation type with REDUCED weighted distribution
                 int operation = random.nextInt(100);
 
-                if (operation < 25) {
-                    // 25% - Create new orders (heavy inserts)
+                if (operation < 30) {
+                    // 30% - Create new orders (reduced frequency)
                     createOrderWorkflow();
-                } else if (operation < 45) {
-                    // 20% - Update customer information (heavy updates)
+                } else if (operation < 55) {
+                    // 25% - Update customer information (SIMPLIFIED)
                     updateCustomerWorkflow();
-                } else if (operation < 60) {
-                    // 15% - Check and update inventory (updates)
-                    inventoryCheckWorkflow();
                 } else if (operation < 75) {
-                    // 15% - Process transactions (inserts + updates)
+                    // 20% - Check and update inventory
+                    inventoryCheckWorkflow();
+                } else if (operation < 90) {
+                    // 15% - Process transactions
                     processTransactionWorkflow();
-                } else if (operation < 85) {
-                    // 10% - Delete old data (aggressive cleanup)
-                    deleteOldDataWorkflow();
-                } else if (operation < 92) {
-                    // 7% - Bulk insert operations
-                    bulkInsertWorkflow();
-                } else if (operation < 97) {
+                } else if (operation < 95) {
                     // 5% - Session management
                     sessionManagementWorkflow();
+                } else if (operation < 98) {
+                    // 3% - Delete old data (HEAVILY REDUCED)
+                    deleteOldDataWorkflow();
+                } else if (operation < 99) {
+                    // 1% - Bulk insert operations (HEAVILY REDUCED)
+                    bulkInsertWorkflow();
                 } else {
-                    // 3% - Product operations
+                    // 1% - Product operations (HEAVILY REDUCED)
                     productOperationsWorkflow();
                 }
 
@@ -141,8 +141,8 @@ public class OltpLoadGenerator {
                 cycleOperations++;
                 consecutiveErrors = 0; // Reset error counter on success
 
-                // REDUCED delay to prevent overwhelming PDB receiver query monitoring
-                Thread.sleep(random.nextInt(400) + 100); // 100-500ms delay = MODERATE LOAD
+                // EXTREMELY REDUCED delay to prevent overwhelming receiver
+                Thread.sleep(random.nextInt(5000) + 5000); // 5000-10000ms delay = VERY LOW LOAD
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -191,20 +191,12 @@ public class OltpLoadGenerator {
         try {
             long customerId = random.nextInt(1000) + 1;
 
-            // Update customer loyalty points via REST API
+            // SIMPLIFIED: Only update customer loyalty points via REST API
             int points = random.nextInt(100);
             String url = apiBaseUrl + "/api/customers/" + customerId + "/loyalty?points=" + points;
             restTemplate.put(url, null);
 
-            // Upgrade customer type randomly
-            if (random.nextInt(10) == 0) {
-                String upgradeUrl = apiBaseUrl + "/api/customers/" + customerId + "/upgrade";
-                restTemplate.put(upgradeUrl, null);
-            }
-
-            // Log customer access
-            String logUrl = apiBaseUrl + "/api/customers/" + customerId + "/access-log";
-            restTemplate.postForObject(logUrl, null, String.class);
+            // REMOVED: Upgrade and access log calls to reduce load
 
         } catch (Exception e) {
             logger.error("Error in updateCustomerWorkflow", e);
@@ -248,15 +240,11 @@ public class OltpLoadGenerator {
         try {
             long customerId = random.nextInt(1000) + 1;
 
-            // Create session via REST API
+            // SIMPLIFIED: Only create session via REST API
             String url = apiBaseUrl + "/api/sessions/create?customerId=" + customerId;
             restTemplate.postForObject(url, null, String.class);
 
-            // Randomly expire old sessions
-            if (random.nextInt(10) == 0) {
-                String expireUrl = apiBaseUrl + "/api/sessions/expire";
-                restTemplate.delete(expireUrl);
-            }
+            // REMOVED: Session expiry to reduce load
 
         } catch (Exception e) {
             logger.error("Error in sessionManagementWorkflow", e);
@@ -269,17 +257,11 @@ public class OltpLoadGenerator {
         try {
             long productId = random.nextInt(500) + 1;
 
-            // Update product price via REST API
-            String updateUrl = apiBaseUrl + "/api/products/" + productId + "/price";
-            restTemplate.put(updateUrl, null);
-
-            // Query product details
+            // SIMPLIFIED: Only query product details (read-only operation)
             String getUrl = apiBaseUrl + "/api/products/" + productId;
             restTemplate.getForObject(getUrl, String.class);
 
-            // Search products by category
-            String searchUrl = apiBaseUrl + "/api/products/search";
-            restTemplate.getForObject(searchUrl, String.class);
+            // REMOVED: Price update and search to reduce load
 
         } catch (Exception e) {
             logger.error("Error in productOperationsWorkflow", e);
@@ -303,8 +285,8 @@ public class OltpLoadGenerator {
     @Trace
     private void bulkInsertWorkflow() {
         try {
-            // Bulk create multiple orders at once via REST API
-            int batchSize = random.nextInt(5) + 3; // 3-7 orders at once
+            // REDUCED: Bulk create fewer orders at once via REST API
+            int batchSize = random.nextInt(2) + 2; // 2-3 orders at once (reduced from 3-7)
             String url = apiBaseUrl + "/api/orders/bulk?batchSize=" + batchSize;
             restTemplate.postForObject(url, null, String.class);
 
