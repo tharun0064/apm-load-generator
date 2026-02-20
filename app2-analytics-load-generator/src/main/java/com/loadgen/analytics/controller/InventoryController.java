@@ -1,4 +1,4 @@
-package com.loadgen.oltp.controller;
+package com.loadgen.analytics.controller;
 
 import com.loadgen.analytics.InventoryService;
 import com.newrelic.api.agent.NewRelic;

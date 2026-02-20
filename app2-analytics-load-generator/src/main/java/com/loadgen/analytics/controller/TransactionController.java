@@ -1,4 +1,4 @@
-package com.loadgen.oltp.controller;
+package com.loadgen.analytics.controller;
 
 import com.loadgen.analytics.OrderService;
 import com.loadgen.analytics.TransactionService;
