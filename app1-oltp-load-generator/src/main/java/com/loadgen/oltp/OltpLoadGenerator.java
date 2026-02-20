@@ -108,29 +108,40 @@ public class OltpLoadGenerator {
                     logger.info("Worker thread {} resuming work", threadId);
                 }
 
-                // BALANCED WORKLOAD: 70% WRITES + 30% CLEANUP (reduced load, no reads until endpoints exist)
+                // EQUAL MIXED WORKLOAD: 40% WRITES + 40% READS + 20% CLEANUP
                 int operation = random.nextInt(100);
 
-                // WRITES (70%)
-                if (operation < 20) {
-                    // 20% - Create new orders
+                // WRITES (40%)
+                if (operation < 12) {
+                    // 12% - Create new orders
                     createOrderWorkflow();
-                } else if (operation < 35) {
-                    // 15% - Update customer information
+                } else if (operation < 22) {
+                    // 10% - Update customer information
                     updateCustomerWorkflow();
-                } else if (operation < 50) {
-                    // 15% - Process transactions
+                } else if (operation < 32) {
+                    // 10% - Process transactions
                     processTransactionWorkflow();
-                } else if (operation < 62) {
-                    // 12% - Check and update inventory
+                } else if (operation < 40) {
+                    // 8% - Check and update inventory
                     inventoryCheckWorkflow();
-                } else if (operation < 70) {
-                    // 8% - Session management
-                    sessionManagementWorkflow();
                 }
-                // CLEANUP (30% - INCREASED for aggressive data management)
+                // READS (40%) - Call app2's analytics endpoints
+                else if (operation < 55) {
+                    // 15% - Sales analytics (calls app2)
+                    salesAnalyticsWorkflow();
+                } else if (operation < 65) {
+                    // 10% - Customer analytics (calls app2)
+                    customerAnalyticsWorkflow();
+                } else if (operation < 75) {
+                    // 10% - Product analytics (calls app2)
+                    productAnalyticsWorkflow();
+                } else if (operation < 80) {
+                    // 5% - Reporting (calls app2)
+                    reportingWorkflow();
+                }
+                // CLEANUP (20%)
                 else {
-                    // 30% - Delete old data and clean up
+                    // 20% - Delete old data
                     deleteOldDataWorkflow();
                 }
 
@@ -294,36 +305,34 @@ public class OltpLoadGenerator {
         }
     }
 
-    // ============ NEW READ OPERATIONS (40% of workload) ============
+    // ============ READ OPERATIONS (40% of workload) - Calls app2's analytics API ============
 
     @Trace
     private void salesAnalyticsWorkflow() {
         try {
-            int choice = random.nextInt(4);
+            int choice = random.nextInt(5);
             String url;
+            String analyticsBaseUrl = "http://localhost:8081"; // App2's analytics API
 
             switch (choice) {
                 case 0:
-                    // Daily sales summary
-                    url = apiBaseUrl + "/api/orders/summary?period=daily";
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/sales/daily";
                     break;
                 case 1:
-                    // Sales by status
-                    url = apiBaseUrl + "/api/orders/by-status";
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/sales/monthly";
                     break;
                 case 2:
-                    // Top customers by order volume
-                    url = apiBaseUrl + "/api/orders/top-customers?limit=20";
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/sales/by-category";
+                    break;
+                case 3:
+                    url = analyticsBaseUrl + "/api/analytics/sales/top-products?limit=20";
                     break;
                 default:
-                    // Recent orders
-                    url = apiBaseUrl + "/api/orders/recent?limit=50";
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/sales/by-payment-method";
                     break;
             }
+
+            restTemplate.getForObject(url, String.class);
 
         } catch (Exception e) {
             logger.error("Error in salesAnalyticsWorkflow", e);
@@ -332,66 +341,67 @@ public class OltpLoadGenerator {
     }
 
     @Trace
-    private void customerLookupWorkflow() {
+    private void customerAnalyticsWorkflow() {
         try {
-            long customerId = random.nextInt(1000) + 1;
-            int choice = random.nextInt(3);
+            int choice = random.nextInt(5);
             String url;
+            String analyticsBaseUrl = "http://localhost:8081";
 
             switch (choice) {
                 case 0:
-                    // Get customer details
-                    url = apiBaseUrl + "/api/customers/" + customerId;
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/customers/segmentation";
                     break;
                 case 1:
-                    // Get customer order history
-                    url = apiBaseUrl + "/api/customers/" + customerId + "/orders";
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/customers/lifetime-value";
+                    break;
+                case 2:
+                    url = analyticsBaseUrl + "/api/analytics/customers/retention";
+                    break;
+                case 3:
+                    url = analyticsBaseUrl + "/api/analytics/customers/high-value?limit=50";
                     break;
                 default:
-                    // Get high-value customers
-                    url = apiBaseUrl + "/api/customers/premium";
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/customers/purchase-frequency";
                     break;
             }
 
+            restTemplate.getForObject(url, String.class);
+
         } catch (Exception e) {
-            logger.error("Error in customerLookupWorkflow", e);
+            logger.error("Error in customerAnalyticsWorkflow", e);
             NewRelic.noticeError(e);
         }
     }
 
     @Trace
-    private void productSearchWorkflow() {
+    private void productAnalyticsWorkflow() {
         try {
-            int choice = random.nextInt(3);
+            int choice = random.nextInt(5);
             String url;
+            String analyticsBaseUrl = "http://localhost:8081";
 
             switch (choice) {
                 case 0:
-                    // Search products by category
-                    String[] categories = {"Electronics", "Clothing", "Books", "Home", "Sports"};
-                    String category = categories[random.nextInt(categories.length)];
-                    url = apiBaseUrl + "/api/products/search?category=" + category;
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/products/performance";
                     break;
                 case 1:
-                    // Get product details
-                    long productId = random.nextInt(500) + 1;
-                    url = apiBaseUrl + "/api/products/" + productId;
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/products/inventory-turnover";
+                    break;
+                case 2:
+                    url = analyticsBaseUrl + "/api/analytics/products/slow-moving";
+                    break;
+                case 3:
+                    url = analyticsBaseUrl + "/api/analytics/products/profit-margin";
                     break;
                 default:
-                    // Check inventory availability
-                    productId = random.nextInt(500) + 1;
-                    url = apiBaseUrl + "/api/inventory/" + productId;
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/products/affinity";
                     break;
             }
 
+            restTemplate.getForObject(url, String.class);
+
         } catch (Exception e) {
-            logger.error("Error in productSearchWorkflow", e);
+            logger.error("Error in productAnalyticsWorkflow", e);
             NewRelic.noticeError(e);
         }
     }
@@ -399,26 +409,26 @@ public class OltpLoadGenerator {
     @Trace
     private void reportingWorkflow() {
         try {
-            int choice = random.nextInt(3);
+            int choice = random.nextInt(4);
             String url;
+            String analyticsBaseUrl = "http://localhost:8081";
 
             switch (choice) {
                 case 0:
-                    // Transaction summary
-                    url = apiBaseUrl + "/api/transactions/summary";
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/reports/executive";
                     break;
                 case 1:
-                    // Inventory status report
-                    url = apiBaseUrl + "/api/inventory/status";
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/reports/sales";
+                    break;
+                case 2:
+                    url = analyticsBaseUrl + "/api/analytics/reports/inventory";
                     break;
                 default:
-                    // Session statistics
-                    url = apiBaseUrl + "/api/sessions/stats";
-                    restTemplate.getForObject(url, String.class);
+                    url = analyticsBaseUrl + "/api/analytics/reports/customer";
                     break;
             }
+
+            restTemplate.getForObject(url, String.class);
 
         } catch (Exception e) {
             logger.error("Error in reportingWorkflow", e);

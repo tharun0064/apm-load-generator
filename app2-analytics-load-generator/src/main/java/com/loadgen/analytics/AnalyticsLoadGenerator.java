@@ -107,37 +107,40 @@ public class AnalyticsLoadGenerator {
                     logger.info("Analytics worker thread {} resuming work", threadId);
                 }
 
-                // BALANCED WORKLOAD: 60% READS + 20% WRITES + 20% CLEANUP
+                // EQUAL MIXED WORKLOAD: 40% WRITES + 40% READS + 20% CLEANUP
                 int operation = random.nextInt(100);
 
-                // READS (60%) - Keep existing analytics endpoints
-                if (operation < 20) {
-                    // 20% - Sales analytics queries
-                    salesAnalyticsWorkflow();
-                } else if (operation < 35) {
-                    // 15% - Customer analytics
-                    customerAnalyticsWorkflow();
-                } else if (operation < 50) {
-                    // 15% - Product performance analytics
-                    productAnalyticsWorkflow();
-                } else if (operation < 60) {
-                    // 10% - Reporting queries
-                    reportingWorkflow();
-                }
-                // WRITES (20% - REDUCED to lower database pressure)
-                else if (operation < 70) {
-                    // 10% - Create orders
+                // WRITES (40%) - Now has same write controllers as app1!
+                if (operation < 12) {
+                    // 12% - Create orders
                     createOrderWorkflow();
-                } else if (operation < 78) {
+                } else if (operation < 22) {
+                    // 10% - Update customers
+                    customerUpdateWorkflow();
+                } else if (operation < 32) {
+                    // 10% - Process transactions
+                    processTransactionWorkflow();
+                } else if (operation < 40) {
                     // 8% - Update inventory
                     updateInventoryWorkflow();
-                } else if (operation < 80) {
-                    // 2% - Process transactions
-                    processTransactionWorkflow();
                 }
-                // CLEANUP (20% - INCREASED for aggressive data management)
+                // READS (40%) - Analytics queries
+                else if (operation < 55) {
+                    // 15% - Sales analytics
+                    salesAnalyticsWorkflow();
+                } else if (operation < 65) {
+                    // 10% - Customer analytics
+                    customerAnalyticsWorkflow();
+                } else if (operation < 75) {
+                    // 10% - Product analytics
+                    productAnalyticsWorkflow();
+                } else if (operation < 80) {
+                    // 5% - Reporting
+                    reportingWorkflow();
+                }
+                // CLEANUP (20%)
                 else {
-                    // 20% - Delete old data (orders, transactions, sessions)
+                    // 20% - Delete old data
                     cleanupOldDataWorkflow();
                 }
 
