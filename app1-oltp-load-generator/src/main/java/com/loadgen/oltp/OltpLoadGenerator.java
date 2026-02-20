@@ -108,43 +108,29 @@ public class OltpLoadGenerator {
                     logger.info("Worker thread {} resuming work", threadId);
                 }
 
-                // MIXED WORKLOAD: 50% WRITES + 40% READS + 10% CLEANUP (balanced load)
+                // BALANCED WORKLOAD: 70% WRITES + 30% CLEANUP (reduced load, no reads until endpoints exist)
                 int operation = random.nextInt(100);
 
-                // WRITES (50%)
-                if (operation < 13) {
-                    // 13% - Create new orders (reduced from 15%)
+                // WRITES (70%)
+                if (operation < 20) {
+                    // 20% - Create new orders
                     createOrderWorkflow();
-                } else if (operation < 23) {
-                    // 10% - Update customer information
+                } else if (operation < 35) {
+                    // 15% - Update customer information
                     updateCustomerWorkflow();
-                } else if (operation < 33) {
-                    // 10% - Process transactions
-                    processTransactionWorkflow();
-                } else if (operation < 43) {
-                    // 10% - Check and update inventory
-                    inventoryCheckWorkflow();
                 } else if (operation < 50) {
-                    // 7% - Session management
+                    // 15% - Process transactions
+                    processTransactionWorkflow();
+                } else if (operation < 62) {
+                    // 12% - Check and update inventory
+                    inventoryCheckWorkflow();
+                } else if (operation < 70) {
+                    // 8% - Session management
                     sessionManagementWorkflow();
                 }
-                // READS (40%)
-                else if (operation < 65) {
-                    // 15% - Sales analytics queries
-                    salesAnalyticsWorkflow();
-                } else if (operation < 75) {
-                    // 10% - Customer lookup queries
-                    customerLookupWorkflow();
-                } else if (operation < 85) {
-                    // 10% - Product search queries
-                    productSearchWorkflow();
-                } else if (operation < 90) {
-                    // 5% - Reporting queries
-                    reportingWorkflow();
-                }
-                // CLEANUP (10% - increased from 8%)
+                // CLEANUP (30% - INCREASED for aggressive data management)
                 else {
-                    // 10% - Delete old data and clean up
+                    // 30% - Delete old data and clean up
                     deleteOldDataWorkflow();
                 }
 

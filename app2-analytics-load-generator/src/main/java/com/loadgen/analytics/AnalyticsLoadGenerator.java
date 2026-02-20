@@ -107,40 +107,37 @@ public class AnalyticsLoadGenerator {
                     logger.info("Analytics worker thread {} resuming work", threadId);
                 }
 
-                // MIXED WORKLOAD: 60% READS + 30% WRITES + 10% CLEANUP
+                // BALANCED WORKLOAD: 60% READS + 20% WRITES + 20% CLEANUP
                 int operation = random.nextInt(100);
 
-                // READS (60%)
+                // READS (60%) - Keep existing analytics endpoints
                 if (operation < 20) {
-                    // 20% - Sales analytics queries (reduced from 25%)
+                    // 20% - Sales analytics queries
                     salesAnalyticsWorkflow();
                 } else if (operation < 35) {
-                    // 15% - Customer analytics (reduced from 20%)
+                    // 15% - Customer analytics
                     customerAnalyticsWorkflow();
                 } else if (operation < 50) {
-                    // 15% - Product performance analytics (reduced from 20%)
+                    // 15% - Product performance analytics
                     productAnalyticsWorkflow();
                 } else if (operation < 60) {
-                    // 10% - Reporting queries (reduced from 20%)
+                    // 10% - Reporting queries
                     reportingWorkflow();
                 }
-                // WRITES (30%)
-                else if (operation < 72) {
-                    // 12% - Create orders (reduced from 15%)
+                // WRITES (20% - REDUCED to lower database pressure)
+                else if (operation < 70) {
+                    // 10% - Create orders
                     createOrderWorkflow();
-                } else if (operation < 82) {
-                    // 10% - Update inventory
+                } else if (operation < 78) {
+                    // 8% - Update inventory
                     updateInventoryWorkflow();
-                } else if (operation < 88) {
-                    // 6% - Process transactions (reduced from 8%)
+                } else if (operation < 80) {
+                    // 2% - Process transactions
                     processTransactionWorkflow();
-                } else if (operation < 90) {
-                    // 2% - Customer updates (reduced from 7%)
-                    customerUpdateWorkflow();
                 }
-                // CLEANUP (10% - NEW!)
+                // CLEANUP (20% - INCREASED for aggressive data management)
                 else {
-                    // 10% - Delete old data (orders, transactions, sessions)
+                    // 20% - Delete old data (orders, transactions, sessions)
                     cleanupOldDataWorkflow();
                 }
 
