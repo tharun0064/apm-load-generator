@@ -141,8 +141,8 @@ public class OltpLoadGenerator {
                 cycleOperations++;
                 consecutiveErrors = 0; // Reset error counter on success
 
-                // MINIMAL delay for MAXIMUM load - only 1-5ms!
-                Thread.sleep(random.nextInt(5) + 1); // 1-5ms delay = VERY HIGH LOAD
+                // REDUCED delay to prevent overwhelming PDB receiver query monitoring
+                Thread.sleep(random.nextInt(400) + 100); // 100-500ms delay = MODERATE LOAD
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
