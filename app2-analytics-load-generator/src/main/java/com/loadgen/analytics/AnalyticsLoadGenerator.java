@@ -107,31 +107,48 @@ public class AnalyticsLoadGenerator {
                     logger.info("Analytics worker thread {} resuming work", threadId);
                 }
 
-                // Randomly select analytical operation
+                // MIXED WORKLOAD: 60% READS + 30% WRITES + 10% CLEANUP
                 int operation = random.nextInt(100);
 
-                if (operation < 25) {
-                    // 25% - Sales analytics queries
+                // READS (60%)
+                if (operation < 20) {
+                    // 20% - Sales analytics queries (reduced from 25%)
                     salesAnalyticsWorkflow();
-                } else if (operation < 45) {
-                    // 20% - Customer analytics
+                } else if (operation < 35) {
+                    // 15% - Customer analytics (reduced from 20%)
                     customerAnalyticsWorkflow();
-                } else if (operation < 65) {
-                    // 20% - Product performance analytics
+                } else if (operation < 50) {
+                    // 15% - Product performance analytics (reduced from 20%)
                     productAnalyticsWorkflow();
-                } else if (operation < 85) {
-                    // 20% - Reporting queries
+                } else if (operation < 60) {
+                    // 10% - Reporting queries (reduced from 20%)
                     reportingWorkflow();
-                } else {
-                    // 15% - Data warehouse operations
-                    dataWarehouseWorkflow();
+                }
+                // WRITES (30%)
+                else if (operation < 72) {
+                    // 12% - Create orders (reduced from 15%)
+                    createOrderWorkflow();
+                } else if (operation < 82) {
+                    // 10% - Update inventory
+                    updateInventoryWorkflow();
+                } else if (operation < 88) {
+                    // 6% - Process transactions (reduced from 8%)
+                    processTransactionWorkflow();
+                } else if (operation < 90) {
+                    // 2% - Customer updates (reduced from 7%)
+                    customerUpdateWorkflow();
+                }
+                // CLEANUP (10% - NEW!)
+                else {
+                    // 10% - Delete old data (orders, transactions, sessions)
+                    cleanupOldDataWorkflow();
                 }
 
                 queryCount++;
                 cycleQueries++;
 
-                // SHORT delay for HEAVY load - analytics queries will overlap and stress DB!
-                Thread.sleep(random.nextInt(50) + 10); // 10-60ms delay = HEAVY CONCURRENT LOAD
+                // MODERATE delay to prevent overwhelming PDB receiver
+                Thread.sleep(random.nextInt(400) + 100); // 100-500ms delay = MODERATE LOAD
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -312,6 +329,143 @@ public class AnalyticsLoadGenerator {
         } catch (Exception e) {
             logger.error("Error in dataWarehouseWorkflow", e);
             NewRelic.noticeError(e);
+        }
+    }
+
+    // ============ NEW WRITE OPERATIONS (40% of workload) ============
+
+    @Trace
+    private void createOrderWorkflow() {
+        try {
+            // Get random customer
+            long customerId = random.nextInt(1000) + 1;
+            int numItems = random.nextInt(5) + 1;
+
+            // Call REST API to create order (assumes same API structure as app1)
+            String url = apiBaseUrl + "/api/orders/create?customerId=" + customerId + "&numItems=" + numItems;
+            restTemplate.postForObject(url, null, String.class);
+
+        } catch (Exception e) {
+            logger.error("Error in createOrderWorkflow", e);
+            NewRelic.noticeError(e);
+        }
+    }
+
+    @Trace
+    private void updateInventoryWorkflow() {
+        try {
+            long productId = random.nextInt(500) + 1;
+            int choice = random.nextInt(3);
+            String url;
+
+            switch (choice) {
+                case 0:
+                    // Restock inventory
+                    int quantity = random.nextInt(100) + 50;
+                    url = apiBaseUrl + "/api/inventory/" + productId + "/restock?quantity=" + quantity;
+                    restTemplate.put(url, null);
+                    break;
+                case 1:
+                    // Update warehouse location
+                    String location = "WH-" + (random.nextInt(5) + 1) + "-" + (char)('A' + random.nextInt(10));
+                    url = apiBaseUrl + "/api/inventory/" + productId + "/location?location=" + location;
+                    restTemplate.put(url, null);
+                    break;
+                default:
+                    // Check and auto-restock (triggers update if low)
+                    url = apiBaseUrl + "/api/inventory/" + productId + "/check";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+            }
+
+        } catch (Exception e) {
+            logger.error("Error in updateInventoryWorkflow", e);
+            NewRelic.noticeError(e);
+        }
+    }
+
+    @Trace
+    private void processTransactionWorkflow() {
+        try {
+            // Get random recent order ID
+            long orderId = random.nextInt(1000) + 1;
+
+            // Process payment via REST API
+            String url = apiBaseUrl + "/api/transactions/process?orderId=" + orderId;
+            restTemplate.postForObject(url, null, String.class);
+
+        } catch (Exception e) {
+            logger.error("Error in processTransactionWorkflow", e);
+            NewRelic.noticeError(e);
+        }
+    }
+
+    @Trace
+    private void customerUpdateWorkflow() {
+        try {
+            long customerId = random.nextInt(1000) + 1;
+            int choice = random.nextInt(3);
+            String url;
+
+            switch (choice) {
+                case 0:
+                    // Update customer loyalty points
+                    int points = random.nextInt(100);
+                    url = apiBaseUrl + "/api/customers/" + customerId + "/loyalty?points=" + points;
+                    restTemplate.put(url, null);
+                    break;
+                case 1:
+                    // Upgrade customer type (10% chance)
+                    if (random.nextInt(10) == 0) {
+                        url = apiBaseUrl + "/api/customers/" + customerId + "/upgrade";
+                        restTemplate.put(url, null);
+                    }
+                    break;
+                default:
+                    // Log customer access
+                    url = apiBaseUrl + "/api/customers/" + customerId + "/access-log";
+                    restTemplate.postForObject(url, null, String.class);
+                    break;
+            }
+
+        } catch (Exception e) {
+            logger.error("Error in customerUpdateWorkflow", e);
+            NewRelic.noticeError(e);
+        }
+    }
+
+    // ============ CLEANUP OPERATIONS (10% of workload) ============
+
+    @Trace
+    private void cleanupOldDataWorkflow() {
+        try {
+            int choice = random.nextInt(3);
+            String url;
+
+            switch (choice) {
+                case 0:
+                    // Delete old orders (>30 days)
+                    url = apiBaseUrl + "/api/orders/old?daysToKeep=30";
+                    restTemplate.delete(url);
+                    logger.debug("Deleted old orders (>30 days)");
+                    break;
+                case 1:
+                    // Expire old sessions (>2 hours)
+                    url = apiBaseUrl + "/api/sessions/expire";
+                    restTemplate.delete(url);
+                    logger.debug("Expired old sessions");
+                    break;
+                default:
+                    // Clean up old audit logs (>60 days) if endpoint exists
+                    url = apiBaseUrl + "/api/audit/cleanup?daysToKeep=60";
+                    restTemplate.delete(url);
+                    logger.debug("Cleaned up old audit logs (>60 days)");
+                    break;
+            }
+
+        } catch (Exception e) {
+            // Don't log error heavily - cleanup failures shouldn't break the flow
+            logger.debug("Cleanup operation encountered error: {}", e.getMessage());
         }
     }
 

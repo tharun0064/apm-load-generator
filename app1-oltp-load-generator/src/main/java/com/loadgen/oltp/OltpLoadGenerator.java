@@ -108,33 +108,44 @@ public class OltpLoadGenerator {
                     logger.info("Worker thread {} resuming work", threadId);
                 }
 
-                // Randomly select operation type with weighted distribution
+                // MIXED WORKLOAD: 50% WRITES + 40% READS + 10% CLEANUP (balanced load)
                 int operation = random.nextInt(100);
 
-                if (operation < 25) {
-                    // 25% - Create new orders (heavy inserts)
+                // WRITES (50%)
+                if (operation < 13) {
+                    // 13% - Create new orders (reduced from 15%)
                     createOrderWorkflow();
-                } else if (operation < 45) {
-                    // 20% - Update customer information (heavy updates)
+                } else if (operation < 23) {
+                    // 10% - Update customer information
                     updateCustomerWorkflow();
-                } else if (operation < 60) {
-                    // 15% - Check and update inventory (updates)
-                    inventoryCheckWorkflow();
-                } else if (operation < 75) {
-                    // 15% - Process transactions (inserts + updates)
+                } else if (operation < 33) {
+                    // 10% - Process transactions
                     processTransactionWorkflow();
-                } else if (operation < 85) {
-                    // 10% - Delete old data (aggressive cleanup)
-                    deleteOldDataWorkflow();
-                } else if (operation < 92) {
-                    // 7% - Bulk insert operations
-                    bulkInsertWorkflow();
-                } else if (operation < 97) {
-                    // 5% - Session management
+                } else if (operation < 43) {
+                    // 10% - Check and update inventory
+                    inventoryCheckWorkflow();
+                } else if (operation < 50) {
+                    // 7% - Session management
                     sessionManagementWorkflow();
-                } else {
-                    // 3% - Product operations
-                    productOperationsWorkflow();
+                }
+                // READS (40%)
+                else if (operation < 65) {
+                    // 15% - Sales analytics queries
+                    salesAnalyticsWorkflow();
+                } else if (operation < 75) {
+                    // 10% - Customer lookup queries
+                    customerLookupWorkflow();
+                } else if (operation < 85) {
+                    // 10% - Product search queries
+                    productSearchWorkflow();
+                } else if (operation < 90) {
+                    // 5% - Reporting queries
+                    reportingWorkflow();
+                }
+                // CLEANUP (10% - increased from 8%)
+                else {
+                    // 10% - Delete old data and clean up
+                    deleteOldDataWorkflow();
                 }
 
                 operationCount++;
@@ -265,51 +276,166 @@ public class OltpLoadGenerator {
     }
 
     @Trace
-    private void productOperationsWorkflow() {
-        try {
-            long productId = random.nextInt(500) + 1;
-
-            // Update product price via REST API
-            String updateUrl = apiBaseUrl + "/api/products/" + productId + "/price";
-            restTemplate.put(updateUrl, null);
-
-            // Query product details
-            String getUrl = apiBaseUrl + "/api/products/" + productId;
-            restTemplate.getForObject(getUrl, String.class);
-
-            // Search products by category
-            String searchUrl = apiBaseUrl + "/api/products/search";
-            restTemplate.getForObject(searchUrl, String.class);
-
-        } catch (Exception e) {
-            logger.error("Error in productOperationsWorkflow", e);
-            NewRelic.noticeError(e);
-        }
-    }
-
-    @Trace
     private void deleteOldDataWorkflow() {
         try {
-            // Delete old orders via REST API
-            String url = apiBaseUrl + "/api/orders/old?daysToKeep=30";
-            restTemplate.delete(url);
+            int choice = random.nextInt(3);
+            String url;
+
+            switch (choice) {
+                case 0:
+                    // Delete old orders (>30 days) - cascades to order_items and transactions
+                    url = apiBaseUrl + "/api/orders/old?daysToKeep=30";
+                    restTemplate.delete(url);
+                    logger.debug("Deleted old orders (>30 days)");
+                    break;
+                case 1:
+                    // Expire and delete old sessions (>2 hours)
+                    url = apiBaseUrl + "/api/sessions/expire";
+                    restTemplate.delete(url);
+                    logger.debug("Expired old sessions");
+                    break;
+                default:
+                    // Clean up old audit logs (>60 days)
+                    url = apiBaseUrl + "/api/audit/cleanup?daysToKeep=60";
+                    restTemplate.delete(url);
+                    logger.debug("Cleaned up old audit logs (>60 days)");
+                    break;
+            }
 
         } catch (Exception e) {
-            logger.error("Error in deleteOldDataWorkflow", e);
+            // Don't fail on cleanup errors - just log at debug level
+            logger.debug("Cleanup operation encountered error: {}", e.getMessage());
+        }
+    }
+
+    // ============ NEW READ OPERATIONS (40% of workload) ============
+
+    @Trace
+    private void salesAnalyticsWorkflow() {
+        try {
+            int choice = random.nextInt(4);
+            String url;
+
+            switch (choice) {
+                case 0:
+                    // Daily sales summary
+                    url = apiBaseUrl + "/api/orders/summary?period=daily";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                case 1:
+                    // Sales by status
+                    url = apiBaseUrl + "/api/orders/by-status";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                case 2:
+                    // Top customers by order volume
+                    url = apiBaseUrl + "/api/orders/top-customers?limit=20";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                default:
+                    // Recent orders
+                    url = apiBaseUrl + "/api/orders/recent?limit=50";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+            }
+
+        } catch (Exception e) {
+            logger.error("Error in salesAnalyticsWorkflow", e);
             NewRelic.noticeError(e);
         }
     }
 
     @Trace
-    private void bulkInsertWorkflow() {
+    private void customerLookupWorkflow() {
         try {
-            // Bulk create multiple orders at once via REST API
-            int batchSize = random.nextInt(5) + 3; // 3-7 orders at once
-            String url = apiBaseUrl + "/api/orders/bulk?batchSize=" + batchSize;
-            restTemplate.postForObject(url, null, String.class);
+            long customerId = random.nextInt(1000) + 1;
+            int choice = random.nextInt(3);
+            String url;
+
+            switch (choice) {
+                case 0:
+                    // Get customer details
+                    url = apiBaseUrl + "/api/customers/" + customerId;
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                case 1:
+                    // Get customer order history
+                    url = apiBaseUrl + "/api/customers/" + customerId + "/orders";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                default:
+                    // Get high-value customers
+                    url = apiBaseUrl + "/api/customers/premium";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+            }
 
         } catch (Exception e) {
-            logger.error("Error in bulkInsertWorkflow", e);
+            logger.error("Error in customerLookupWorkflow", e);
+            NewRelic.noticeError(e);
+        }
+    }
+
+    @Trace
+    private void productSearchWorkflow() {
+        try {
+            int choice = random.nextInt(3);
+            String url;
+
+            switch (choice) {
+                case 0:
+                    // Search products by category
+                    String[] categories = {"Electronics", "Clothing", "Books", "Home", "Sports"};
+                    String category = categories[random.nextInt(categories.length)];
+                    url = apiBaseUrl + "/api/products/search?category=" + category;
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                case 1:
+                    // Get product details
+                    long productId = random.nextInt(500) + 1;
+                    url = apiBaseUrl + "/api/products/" + productId;
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                default:
+                    // Check inventory availability
+                    productId = random.nextInt(500) + 1;
+                    url = apiBaseUrl + "/api/inventory/" + productId;
+                    restTemplate.getForObject(url, String.class);
+                    break;
+            }
+
+        } catch (Exception e) {
+            logger.error("Error in productSearchWorkflow", e);
+            NewRelic.noticeError(e);
+        }
+    }
+
+    @Trace
+    private void reportingWorkflow() {
+        try {
+            int choice = random.nextInt(3);
+            String url;
+
+            switch (choice) {
+                case 0:
+                    // Transaction summary
+                    url = apiBaseUrl + "/api/transactions/summary";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                case 1:
+                    // Inventory status report
+                    url = apiBaseUrl + "/api/inventory/status";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                default:
+                    // Session statistics
+                    url = apiBaseUrl + "/api/sessions/stats";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+            }
+
+        } catch (Exception e) {
+            logger.error("Error in reportingWorkflow", e);
             NewRelic.noticeError(e);
         }
     }
