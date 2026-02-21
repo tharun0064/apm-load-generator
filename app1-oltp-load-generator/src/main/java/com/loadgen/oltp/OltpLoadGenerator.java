@@ -88,17 +88,25 @@ public class OltpLoadGenerator {
         NewRelic.addCustomParameter("threadId", threadId);
 
         int operationCount = 0;
-        // Break tracking disabled for nuclear load mode
-        // long lastBreakTime = System.currentTimeMillis();
-        // int cycleOperations = 0;
+        long lastBreakTime = System.currentTimeMillis();
+        int cycleOperations = 0;
         int consecutiveErrors = 0;
 
         while (running) {
             try {
-                // BREAKS DISABLED FOR NUCLEAR LOAD - continuous operations without breaks
-                // long currentTime = System.currentTimeMillis();
-                // long timeSinceBreak = currentTime - lastBreakTime;
-                // Break logic commented out for maximum continuous load
+                // Check if it's time for a break (sustainable load)
+                long currentTime = System.currentTimeMillis();
+                long timeSinceBreak = currentTime - lastBreakTime;
+
+                // Take a break every 60-90 seconds (randomized per thread)
+                int breakInterval = 60000 + random.nextInt(30000); // 60-90 seconds
+                if (timeSinceBreak > breakInterval) {
+                    logger.info("Worker thread {} taking 10-second break after {} operations", threadId, cycleOperations);
+                    Thread.sleep(10000); // 10 second break
+                    lastBreakTime = System.currentTimeMillis();
+                    cycleOperations = 0;
+                    logger.info("Worker thread {} resuming work", threadId);
+                }
 
                 // Randomly select operation type with REDUCED weighted distribution
                 int operation = random.nextInt(100);
@@ -130,11 +138,11 @@ public class OltpLoadGenerator {
                 }
 
                 operationCount++;
-                // cycleOperations++; // Disabled for nuclear load mode
+                cycleOperations++;
                 consecutiveErrors = 0; // Reset error counter on success
 
-                // NUCLEAR LOAD - NO DELAY - operations fire as fast as possible!
-                // Thread.sleep removed - ZERO DELAY
+                // SUSTAINABLE HEAVY LOAD - moderate delay to prevent overwhelming receiver
+                Thread.sleep(random.nextInt(500) + 250); // 250-750ms delay = SUSTAINABLE LOAD
 
             } catch (Exception e) {
                 consecutiveErrors++;

@@ -88,16 +88,24 @@ public class AnalyticsLoadGenerator {
         NewRelic.addCustomParameter("threadId", threadId);
 
         int queryCount = 0;
-        // Break tracking disabled for nuclear load mode
-        // long lastBreakTime = System.currentTimeMillis();
-        // int cycleQueries = 0;
+        long lastBreakTime = System.currentTimeMillis();
+        int cycleQueries = 0;
 
         while (running) {
             try {
-                // BREAKS DISABLED FOR NUCLEAR LOAD - continuous queries without breaks
-                // long currentTime = System.currentTimeMillis();
-                // long timeSinceBreak = currentTime - lastBreakTime;
-                // Break logic commented out for maximum continuous load
+                // Check if it's time for a break (sustainable load)
+                long currentTime = System.currentTimeMillis();
+                long timeSinceBreak = currentTime - lastBreakTime;
+
+                // Take a break every 90-150 seconds (randomized per thread)
+                int breakInterval = 90000 + random.nextInt(60000); // 90-150 seconds
+                if (timeSinceBreak > breakInterval) {
+                    logger.info("Analytics worker thread {} taking 5-second break after {} queries", threadId, cycleQueries);
+                    Thread.sleep(5000); // 5 second break
+                    lastBreakTime = System.currentTimeMillis();
+                    cycleQueries = 0;
+                    logger.info("Analytics worker thread {} resuming work", threadId);
+                }
 
                 // Randomly select analytical operation
                 int operation = random.nextInt(100);
@@ -120,10 +128,10 @@ public class AnalyticsLoadGenerator {
                 }
 
                 queryCount++;
-                // cycleQueries++; // Disabled for nuclear load mode
+                cycleQueries++;
 
-                // INSANE LOAD - no delay, queries fire as fast as possible!
-                // Thread.sleep(1); // Removed - zero delay = INSANE LOAD
+                // SUSTAINABLE HEAVY LOAD - short delay to prevent overwhelming receiver
+                Thread.sleep(random.nextInt(50) + 50); // 50-100ms delay = SUSTAINABLE LOAD
 
             } catch (Exception e) {
                 logger.error("Error in analytics worker thread {}: {}", threadId, e.getMessage());
