@@ -23,6 +23,9 @@ public class OltpApplication {
     @Lazy
     private OltpLoadGenerator loadGenerator;
 
+    @Autowired
+    private TableCleanupService tableCleanupService;
+
     public static void main(String[] args) {
         logger.info("=" .repeat(80));
         logger.info("OLTP Load Generator Starting");
@@ -37,7 +40,16 @@ public class OltpApplication {
 
     @EventListener(ApplicationReadyEvent.class)
     public void startLoadGeneration() {
-        logger.info("Application ready, starting load generation...");
+        logger.info("Application ready, cleaning up tables before starting load generation...");
+
+        // Clean up all tables before starting
+        try {
+            tableCleanupService.truncateAllTables();
+        } catch (Exception e) {
+            logger.error("Failed to clean up tables, aborting startup", e);
+            System.exit(1);
+        }
+
         // Start load generator in a separate thread so it doesn't block Spring Boot
         new Thread(() -> loadGenerator.start(), "LoadGeneratorMain").start();
     }
