@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build script for both load generator applications
+# Build script for all load generator applications
 
 set -e  # Exit on error
 
@@ -94,11 +94,12 @@ echo "2. Configure database connection (see application.properties or use enviro
 echo "3. (Optional) Set up New Relic Java agent (see newrelic-setup.md)"
 echo "4. Run the applications:"
 echo ""
-echo "   # Without New Relic:"
-echo "   cd app1-oltp-load-generator"
-echo "   java -Dthreads=50 -jar target/app1-oltp-load-generator-1.0.0.jar"
+echo "   # Run all apps together:"
+echo "   ./runBothApps.sh"
 echo ""
-echo "   # With New Relic:"
-echo "   java -javaagent:newrelic.jar -Dnewrelic.config.license_key=YOUR_KEY -jar target/app1-oltp-load-generator-1.0.0.jar"
+echo "   # Or run individually:"
+echo "   cd app1-oltp-load-generator && ./run.sh --bg"
+echo "   cd app2-analytics-load-generator && ./run.sh --bg"
+echo "   cd app3-analytics-load-generator && ./run.sh --bg"
 echo ""
 echo "See README.md for complete documentation"
