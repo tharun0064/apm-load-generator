@@ -131,7 +131,7 @@ public class AnalyticsLoadGenerator {
                 cycleQueries++;
 
                 // SHORT delay for HEAVY load - analytics queries will overlap and stress DB!
-                Thread.sleep(random.nextInt(50) + 10); // 10-60ms delay = HEAVY CONCURRENT LOAD
+                Thread.sleep(random.nextInt(30) + 10); // 10-40ms delay = VERY HEAVY CONCURRENT LOAD
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

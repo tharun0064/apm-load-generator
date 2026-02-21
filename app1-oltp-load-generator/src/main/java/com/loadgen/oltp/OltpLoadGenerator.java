@@ -141,8 +141,8 @@ public class OltpLoadGenerator {
                 cycleOperations++;
                 consecutiveErrors = 0; // Reset error counter on success
 
-                // EXTREMELY REDUCED delay to prevent overwhelming receiver
-                Thread.sleep(random.nextInt(5000) + 5000); // 5000-10000ms delay = VERY LOW LOAD
+                // MODERATE delay for increased load
+                Thread.sleep(random.nextInt(3000) + 2000); // 2000-5000ms delay = MODERATE LOAD
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
