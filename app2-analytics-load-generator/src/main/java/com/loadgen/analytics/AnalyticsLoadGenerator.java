@@ -97,11 +97,11 @@ public class AnalyticsLoadGenerator {
                 long currentTime = System.currentTimeMillis();
                 long timeSinceBreak = currentTime - lastBreakTime;
 
-                // Take a break every 90-150 seconds (randomized per thread)
-                int breakInterval = 90000 + random.nextInt(60000); // 90-150 seconds
+                // Take a break every 120-180 seconds (randomized per thread)
+                int breakInterval = 120000 + random.nextInt(60000); // 120-180 seconds (2-3 minutes)
                 if (timeSinceBreak > breakInterval) {
-                    logger.info("Analytics worker thread {} taking 5-second break after {} queries", threadId, cycleQueries);
-                    Thread.sleep(5000); // 5 second break
+                    logger.info("Analytics worker thread {} taking 3-second break after {} queries", threadId, cycleQueries);
+                    Thread.sleep(3000); // 3 second break
                     lastBreakTime = System.currentTimeMillis();
                     cycleQueries = 0;
                     logger.info("Analytics worker thread {} resuming work", threadId);
@@ -130,8 +130,8 @@ public class AnalyticsLoadGenerator {
                 queryCount++;
                 cycleQueries++;
 
-                // SUSTAINABLE HEAVY LOAD - short delay to prevent overwhelming receiver
-                Thread.sleep(random.nextInt(50) + 50); // 50-100ms delay = SUSTAINABLE LOAD
+                // HEAVY LOAD - shorter delay for slow traces
+                Thread.sleep(random.nextInt(30) + 20); // 20-50ms delay = HEAVY LOAD
 
             } catch (Exception e) {
                 logger.error("Error in analytics worker thread {}: {}", threadId, e.getMessage());

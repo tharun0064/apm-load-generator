@@ -98,11 +98,11 @@ public class OltpLoadGenerator {
                 long currentTime = System.currentTimeMillis();
                 long timeSinceBreak = currentTime - lastBreakTime;
 
-                // Take a break every 60-90 seconds (randomized per thread)
-                int breakInterval = 60000 + random.nextInt(30000); // 60-90 seconds
+                // Take a break every 90-120 seconds (randomized per thread)
+                int breakInterval = 90000 + random.nextInt(30000); // 90-120 seconds
                 if (timeSinceBreak > breakInterval) {
-                    logger.info("Worker thread {} taking 10-second break after {} operations", threadId, cycleOperations);
-                    Thread.sleep(10000); // 10 second break
+                    logger.info("Worker thread {} taking 5-second break after {} operations", threadId, cycleOperations);
+                    Thread.sleep(5000); // 5 second break
                     lastBreakTime = System.currentTimeMillis();
                     cycleOperations = 0;
                     logger.info("Worker thread {} resuming work", threadId);
@@ -141,8 +141,8 @@ public class OltpLoadGenerator {
                 cycleOperations++;
                 consecutiveErrors = 0; // Reset error counter on success
 
-                // SUSTAINABLE HEAVY LOAD - moderate delay to prevent overwhelming receiver
-                Thread.sleep(random.nextInt(500) + 250); // 250-750ms delay = SUSTAINABLE LOAD
+                // HEAVY LOAD - shorter delay for slow traces
+                Thread.sleep(random.nextInt(200) + 100); // 100-300ms delay = HEAVY LOAD
 
             } catch (Exception e) {
                 consecutiveErrors++;
