@@ -1,14 +1,15 @@
 #!/bin/bash
 
-# Script to run both load generator applications
-# Usage: ./runBothApps.sh         - Start both apps in background
-#        ./runBothApps.sh --stop   - Stop both apps
-#        ./runBothApps.sh --logs   - View logs from both apps
+# Script to run all load generator applications
+# Usage: ./runBothApps.sh         - Start all apps in background
+#        ./runBothApps.sh --stop   - Stop all apps
+#        ./runBothApps.sh --logs   - View logs from all apps
 
 set -e
 
 APP1_DIR="app1-oltp-load-generator"
 APP2_DIR="app2-analytics-load-generator"
+APP3_DIR="app3-analytics-load-generator"
 
 # Colors for output
 RED='\033[0;31m'
@@ -19,7 +20,7 @@ NC='\033[0m' # No Color
 # Stop mode
 if [[ "$1" == "--stop" ]]; then
     echo "=========================================="
-    echo "Stopping Both Applications"
+    echo "Stopping All Applications"
     echo "=========================================="
 
     echo -e "${YELLOW}Stopping App1 (OLTP)...${NC}"
@@ -27,6 +28,9 @@ if [[ "$1" == "--stop" ]]; then
 
     echo -e "${YELLOW}Stopping App2 (Analytics)...${NC}"
     pkill -f 'java.*app2-analytics-load-generator' && echo -e "${GREEN}✓ App2 stopped${NC}" || echo -e "${YELLOW}⚠ App2 not running${NC}"
+
+    echo -e "${YELLOW}Stopping App3 (Analytics3)...${NC}"
+    pkill -f 'java.*app3-analytics-load-generator' && echo -e "${GREEN}✓ App3 stopped${NC}" || echo -e "${YELLOW}⚠ App3 not running${NC}"
 
     echo "=========================================="
     exit 0
@@ -39,15 +43,16 @@ if [[ "$1" == "--logs" ]]; then
     echo "=========================================="
     echo "App1 logs: $APP1_DIR/app.log"
     echo "App2 logs: $APP2_DIR/app.log"
+    echo "App3 logs: $APP3_DIR/app.log"
     echo "=========================================="
     echo ""
 
-    # Use multitail if available, otherwise tail both
+    # Use multitail if available, otherwise tail all three
     if command -v multitail &> /dev/null; then
-        multitail -s 2 "$APP1_DIR/app.log" "$APP2_DIR/app.log"
+        multitail -s 2 "$APP1_DIR/app.log" "$APP2_DIR/app.log" "$APP3_DIR/app.log"
     else
         echo "Tip: Install 'multitail' for better log viewing"
-        echo "Showing App1 logs (for App2, run: tail -f $APP2_DIR/app.log)"
+        echo "Showing App1 logs (for others, run: tail -f $APP2_DIR/app.log or tail -f $APP3_DIR/app.log)"
         tail -f "$APP1_DIR/app.log"
     fi
     exit 0
@@ -60,16 +65,19 @@ echo "=========================================="
 
 APP1_RUNNING=$(pgrep -f 'java.*app1-oltp-load-generator' || echo "")
 APP2_RUNNING=$(pgrep -f 'java.*app2-analytics-load-generator' || echo "")
+APP3_RUNNING=$(pgrep -f 'java.*app3-analytics-load-generator' || echo "")
 
-if [ -n "$APP1_RUNNING" ] || [ -n "$APP2_RUNNING" ]; then
+if [ -n "$APP1_RUNNING" ] || [ -n "$APP2_RUNNING" ] || [ -n "$APP3_RUNNING" ]; then
     echo -e "${YELLOW}Found running applications:${NC}"
     [ -n "$APP1_RUNNING" ] && echo "  App1 (OLTP): PID $APP1_RUNNING"
     [ -n "$APP2_RUNNING" ] && echo "  App2 (Analytics): PID $APP2_RUNNING"
+    [ -n "$APP3_RUNNING" ] && echo "  App3 (Analytics3): PID $APP3_RUNNING"
     echo ""
     echo -e "${YELLOW}Stopping existing processes...${NC}"
 
     [ -n "$APP1_RUNNING" ] && pkill -f 'java.*app1-oltp-load-generator' && echo -e "${GREEN}✓ Stopped App1${NC}"
     [ -n "$APP2_RUNNING" ] && pkill -f 'java.*app2-analytics-load-generator' && echo -e "${GREEN}✓ Stopped App2${NC}"
+    [ -n "$APP3_RUNNING" ] && pkill -f 'java.*app3-analytics-load-generator' && echo -e "${GREEN}✓ Stopped App3${NC}"
 
     # Wait for processes to fully terminate
     sleep 2
@@ -95,7 +103,13 @@ if [ ! -f "$APP2_DIR/target/app2-analytics-load-generator-1.0.0.jar" ]; then
     exit 1
 fi
 
-echo -e "${GREEN}✓ Both JAR files found${NC}"
+if [ ! -f "$APP3_DIR/target/app3-analytics-load-generator-1.0.0.jar" ]; then
+    echo -e "${RED}✗ App3 JAR not found${NC}"
+    echo "Please build first: ./build-all.sh"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ All JAR files found${NC}"
 echo ""
 
 # Start App1
@@ -119,16 +133,29 @@ cd "$APP2_DIR"
 cd ..
 echo ""
 
+# Wait a moment before starting App3
+sleep 2
+
+# Start App3
+echo "=========================================="
+echo "Starting App3 (Analytics Load Generator 3)"
+echo "=========================================="
+cd "$APP3_DIR"
+./run.sh --bg
+cd ..
+echo ""
+
 # Wait for apps to start
 sleep 3
 
-# Verify both apps are running
+# Verify all apps are running
 echo "=========================================="
 echo "Verification"
 echo "=========================================="
 
 APP1_PID=$(pgrep -f 'java.*app1-oltp-load-generator' || echo "")
 APP2_PID=$(pgrep -f 'java.*app2-analytics-load-generator' || echo "")
+APP3_PID=$(pgrep -f 'java.*app3-analytics-load-generator' || echo "")
 
 if [ -n "$APP1_PID" ]; then
     echo -e "${GREEN}✓ App1 running (PID: $APP1_PID)${NC}"
@@ -142,15 +169,22 @@ else
     echo -e "${RED}✗ App2 failed to start${NC}"
 fi
 
+if [ -n "$APP3_PID" ]; then
+    echo -e "${GREEN}✓ App3 running (PID: $APP3_PID)${NC}"
+else
+    echo -e "${RED}✗ App3 failed to start${NC}"
+fi
+
 echo "=========================================="
 echo ""
 echo "Useful Commands:"
 echo "  View logs:     ./runBothApps.sh --logs"
 echo "  Stop apps:     ./runBothApps.sh --stop"
-echo "  Monitor CPU:   watch -n 2 'ps aux | head -1 && ps aux | grep -E \"java.*app[12]|nrdot-collector\" | grep -v grep'"
+echo "  Monitor CPU:   watch -n 2 'ps aux | head -1 && ps aux | grep -E \"java.*app[123]|nrdot-collector\" | grep -v grep'"
 echo ""
 echo "Individual Logs:"
 echo "  App1: tail -f $APP1_DIR/app.log"
 echo "  App2: tail -f $APP2_DIR/app.log"
+echo "  App3: tail -f $APP3_DIR/app.log"
 echo ""
 echo "=========================================="

@@ -70,6 +70,20 @@ fi
 cd ..
 
 echo ""
+echo "Building Application 3: Analytics Load Generator 3"
+echo "------------------------------------------------"
+cd app3-analytics-load-generator
+mvn clean package -DskipTests
+if [ $? -eq 0 ]; then
+    echo "✓ Analytics Load Generator 3 built successfully"
+    echo "  Output: app3-analytics-load-generator/target/app3-analytics-load-generator-1.0.0.jar"
+else
+    echo "✗ Analytics Load Generator 3 build failed"
+    exit 1
+fi
+cd ..
+
+echo ""
 echo "=========================================="
 echo "Build Complete!"
 echo "=========================================="
