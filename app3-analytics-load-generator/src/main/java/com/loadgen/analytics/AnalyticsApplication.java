@@ -12,7 +12,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * Spring Boot Application for Analytics Load Generator
+ * Spring Boot Application for Analytics Load Generator 3
  * Exposes REST APIs and runs load generation worker threads
  */
 @SpringBootApplication
@@ -25,7 +25,7 @@ public class AnalyticsApplication {
 
     public static void main(String[] args) {
         logger.info("=".repeat(80));
-        logger.info("Analytics Load Generator Starting");
+        logger.info("Analytics Load Generator 3 Starting");
         logger.info("=".repeat(80));
         SpringApplication.run(AnalyticsApplication.class, args);
     }
