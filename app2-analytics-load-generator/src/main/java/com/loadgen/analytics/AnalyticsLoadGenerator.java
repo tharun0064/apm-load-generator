@@ -93,15 +93,15 @@ public class AnalyticsLoadGenerator {
 
         while (running) {
             try {
-                // Check if it's time for a break (REDUCED for extreme load)
+                // Check if it's time for a break (MINIMAL breaks for maximum load)
                 long currentTime = System.currentTimeMillis();
                 long timeSinceBreak = currentTime - lastBreakTime;
 
-                // Take a break every 60-120 seconds (randomized per thread to avoid all threads breaking at once)
-                int breakInterval = 60000 + random.nextInt(60000); // 60-120 seconds
+                // Take a break every 90-180 seconds (randomized per thread to avoid all threads breaking at once)
+                int breakInterval = 90000 + random.nextInt(90000); // 90-180 seconds
                 if (timeSinceBreak > breakInterval) {
-                    logger.info("Analytics worker thread {} taking 5-second break after {} queries", threadId, cycleQueries);
-                    Thread.sleep(5000); // 5 second break (reduced from 10s)
+                    logger.info("Analytics worker thread {} taking 3-second break after {} queries", threadId, cycleQueries);
+                    Thread.sleep(3000); // 3 second break (minimal)
                     lastBreakTime = System.currentTimeMillis();
                     cycleQueries = 0;
                     logger.info("Analytics worker thread {} resuming work", threadId);
@@ -130,8 +130,8 @@ public class AnalyticsLoadGenerator {
                 queryCount++;
                 cycleQueries++;
 
-                // EXTREME LOAD - minimal delay for maximum query throughput!
-                Thread.sleep(random.nextInt(15) + 5); // 5-20ms delay = EXTREME CONCURRENT LOAD
+                // MAXIMUM LOAD - near-instant queries for absolute maximum throughput!
+                Thread.sleep(random.nextInt(5) + 1); // 1-6ms delay = ABSOLUTE MAXIMUM LOAD
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

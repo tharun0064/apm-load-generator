@@ -94,15 +94,15 @@ public class OltpLoadGenerator {
 
         while (running) {
             try {
-                // Check if it's time for a break (REDUCED for heavy load)
+                // Check if it's time for a break (MINIMAL breaks for maximum load)
                 long currentTime = System.currentTimeMillis();
                 long timeSinceBreak = currentTime - lastBreakTime;
 
-                // Take a break every 30-60 seconds (randomized per thread to avoid all threads breaking at once)
-                int breakInterval = 30000 + random.nextInt(30000); // 30-60 seconds
+                // Take a break every 60-90 seconds (randomized per thread to avoid all threads breaking at once)
+                int breakInterval = 60000 + random.nextInt(30000); // 60-90 seconds
                 if (timeSinceBreak > breakInterval) {
-                    logger.info("Worker thread {} taking 15-second break after {} operations", threadId, cycleOperations);
-                    Thread.sleep(15000); // 15 second break (reduced from 30s)
+                    logger.info("Worker thread {} taking 5-second break after {} operations", threadId, cycleOperations);
+                    Thread.sleep(5000); // 5 second break (minimal)
                     lastBreakTime = System.currentTimeMillis();
                     cycleOperations = 0;
                     logger.info("Worker thread {} resuming work", threadId);
@@ -141,8 +141,8 @@ public class OltpLoadGenerator {
                 cycleOperations++;
                 consecutiveErrors = 0; // Reset error counter on success
 
-                // HEAVY LOAD - reduced delay for maximum stress
-                Thread.sleep(random.nextInt(2000) + 1000); // 1000-3000ms delay = HEAVY LOAD
+                // MAXIMUM LOAD - minimal delay for extreme stress
+                Thread.sleep(random.nextInt(500) + 500); // 500-1000ms delay = MAXIMUM LOAD
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
