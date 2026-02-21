@@ -9,6 +9,8 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.client.RestTemplate;
 
 /**
@@ -16,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
  * Exposes REST APIs and runs load generation worker threads
  */
 @SpringBootApplication
+@EnableScheduling
 public class OltpApplication {
     private static final Logger logger = LoggerFactory.getLogger(OltpApplication.class);
 
@@ -40,9 +43,9 @@ public class OltpApplication {
 
     @EventListener(ApplicationReadyEvent.class)
     public void startLoadGeneration() {
-        logger.info("Application ready, cleaning up and rebuilding seed data...");
+        logger.info("Application ready, performing initial cleanup and rebuild...");
 
-        // Truncate all tables and repopulate seed data (1000 customers, 500 products)
+        // Initial cleanup and rebuild on startup
         try {
             tableCleanupService.truncateAndRebuild();
         } catch (Exception e) {
@@ -52,5 +55,21 @@ public class OltpApplication {
 
         // Start load generator in a separate thread so it doesn't block Spring Boot
         new Thread(() -> loadGenerator.start(), "LoadGeneratorMain").start();
+    }
+
+    /**
+     * Scheduled cleanup: Truncate and rebuild tables every 5 minutes
+     * This creates consistent load patterns and prevents data accumulation
+     */
+    @Scheduled(fixedDelay = 300000, initialDelay = 300000) // 300000ms = 5 minutes
+    public void scheduledCleanup() {
+        logger.info("Running scheduled cleanup (every 5 minutes)...");
+        try {
+            tableCleanupService.truncateAndRebuild();
+            logger.info("Scheduled cleanup completed successfully");
+        } catch (Exception e) {
+            logger.error("Error during scheduled cleanup", e);
+            // Don't exit - just log and continue
+        }
     }
 }
