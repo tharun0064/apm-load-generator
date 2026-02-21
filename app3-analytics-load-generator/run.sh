@@ -18,8 +18,8 @@ fi
 
 # Stop mode: kill the process
 if [ "$STOP" = true ]; then
-    echo "Stopping Analytics Load Generator..."
-    pkill -f 'java.*app2-analytics-load-generator' && echo "Process stopped" || echo "No running process found"
+    echo "Stopping Analytics Load Generator 3..."
+    pkill -f 'java.*app3-analytics-load-generator' && echo "Process stopped" || echo "No running process found"
     exit 0
 fi
 
@@ -36,7 +36,7 @@ else
 fi
 
 # Check if JAR file exists
-JAR_FILE="target/app2-analytics-load-generator-1.0.0.jar"
+JAR_FILE="target/app3-analytics-load-generator-1.0.0.jar"
 if [ ! -f "$JAR_FILE" ]; then
     echo "ERROR: $JAR_FILE not found"
     echo "Please build the application first: mvn clean package"
@@ -47,7 +47,7 @@ fi
 THREADS=${THREADS:-20}
 
 echo "=========================================="
-echo "Starting Analytics Load Generator"
+echo "Starting Analytics Load Generator 3"
 echo "=========================================="
 echo "Database: ${DB_URL}"
 echo "Username: ${DB_USERNAME}"
