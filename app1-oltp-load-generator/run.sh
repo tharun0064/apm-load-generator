@@ -1,8 +1,27 @@
 #!/bin/bash
 
 # Run script for OLTP Load Generator with .env support
+# Usage: ./run.sh           - Run in foreground
+#        ./run.sh --bg       - Run in background with logs in app.log
+#        ./run.sh --stop     - Stop background process
 
 set -e  # Exit on error
+
+# Check for background flag
+BACKGROUND=false
+STOP=false
+if [[ "$1" == "--bg" || "$1" == "-b" ]]; then
+    BACKGROUND=true
+elif [[ "$1" == "--stop" ]]; then
+    STOP=true
+fi
+
+# Stop mode: kill the process
+if [ "$STOP" = true ]; then
+    echo "Stopping OLTP Load Generator..."
+    pkill -f 'java.*app1-oltp-load-generator' && echo "Process stopped" || echo "No running process found"
+    exit 0
+fi
 
 # Load environment variables from .env file
 if [ -f .env ]; then
@@ -48,7 +67,14 @@ if [ -f "newrelic.jar" ] && [ -f "newrelic.yml" ]; then
     echo "=========================================="
     echo ""
 
-    java -javaagent:newrelic.jar -Dthreads=${THREADS} -jar "$JAR_FILE"
+    if [ "$BACKGROUND" = true ]; then
+        nohup java -javaagent:newrelic.jar -Dthreads=${THREADS} -jar "$JAR_FILE" > app.log 2>&1 &
+        PID=$!
+        echo "Started in background with PID: $PID"
+        echo "Logs: tail -f app.log"
+    else
+        java -javaagent:newrelic.jar -Dthreads=${THREADS} -jar "$JAR_FILE"
+    fi
 else
     echo "=========================================="
     echo "New Relic Agent: DISABLED"
@@ -62,5 +88,12 @@ else
     echo "=========================================="
     echo ""
 
-    java -Dthreads=${THREADS} -jar "$JAR_FILE"
+    if [ "$BACKGROUND" = true ]; then
+        nohup java -Dthreads=${THREADS} -jar "$JAR_FILE" > app.log 2>&1 &
+        PID=$!
+        echo "Started in background with PID: $PID"
+        echo "Logs: tail -f app.log"
+    else
+        java -Dthreads=${THREADS} -jar "$JAR_FILE"
+    fi
 fi
