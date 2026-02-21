@@ -93,15 +93,15 @@ public class AnalyticsLoadGenerator {
 
         while (running) {
             try {
-                // Check if it's time for a 10-second break (after 30-60 seconds of work)
+                // Check if it's time for a break (REDUCED for extreme load)
                 long currentTime = System.currentTimeMillis();
                 long timeSinceBreak = currentTime - lastBreakTime;
 
-                // Take a break every 30-60 seconds (randomized per thread to avoid all threads breaking at once)
-                int breakInterval = 30000 + random.nextInt(30000); // 30-60 seconds
+                // Take a break every 60-120 seconds (randomized per thread to avoid all threads breaking at once)
+                int breakInterval = 60000 + random.nextInt(60000); // 60-120 seconds
                 if (timeSinceBreak > breakInterval) {
-                    logger.info("Analytics worker thread {} taking 10-second break after {} queries", threadId, cycleQueries);
-                    Thread.sleep(10000); // 10 second break
+                    logger.info("Analytics worker thread {} taking 5-second break after {} queries", threadId, cycleQueries);
+                    Thread.sleep(5000); // 5 second break (reduced from 10s)
                     lastBreakTime = System.currentTimeMillis();
                     cycleQueries = 0;
                     logger.info("Analytics worker thread {} resuming work", threadId);
@@ -130,8 +130,8 @@ public class AnalyticsLoadGenerator {
                 queryCount++;
                 cycleQueries++;
 
-                // SHORT delay for HEAVY load - analytics queries will overlap and stress DB!
-                Thread.sleep(random.nextInt(30) + 10); // 10-40ms delay = VERY HEAVY CONCURRENT LOAD
+                // EXTREME LOAD - minimal delay for maximum query throughput!
+                Thread.sleep(random.nextInt(15) + 5); // 5-20ms delay = EXTREME CONCURRENT LOAD
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
