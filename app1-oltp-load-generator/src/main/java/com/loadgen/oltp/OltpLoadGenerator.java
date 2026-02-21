@@ -88,8 +88,9 @@ public class OltpLoadGenerator {
         NewRelic.addCustomParameter("threadId", threadId);
 
         int operationCount = 0;
-        long lastBreakTime = System.currentTimeMillis();
-        int cycleOperations = 0;
+        // Break tracking disabled for nuclear load mode
+        // long lastBreakTime = System.currentTimeMillis();
+        // int cycleOperations = 0;
         int consecutiveErrors = 0;
 
         while (running) {
@@ -129,16 +130,12 @@ public class OltpLoadGenerator {
                 }
 
                 operationCount++;
-                cycleOperations++;
+                // cycleOperations++; // Disabled for nuclear load mode
                 consecutiveErrors = 0; // Reset error counter on success
 
                 // NUCLEAR LOAD - NO DELAY - operations fire as fast as possible!
                 // Thread.sleep removed - ZERO DELAY
 
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.warn("Worker thread {} interrupted", threadId);
-                break;
             } catch (Exception e) {
                 consecutiveErrors++;
                 logger.error("Error in worker thread {} (consecutive errors: {}): {}", threadId, consecutiveErrors, e.getMessage());

@@ -88,8 +88,9 @@ public class AnalyticsLoadGenerator {
         NewRelic.addCustomParameter("threadId", threadId);
 
         int queryCount = 0;
-        long lastBreakTime = System.currentTimeMillis();
-        int cycleQueries = 0;
+        // Break tracking disabled for nuclear load mode
+        // long lastBreakTime = System.currentTimeMillis();
+        // int cycleQueries = 0;
 
         while (running) {
             try {
@@ -119,15 +120,11 @@ public class AnalyticsLoadGenerator {
                 }
 
                 queryCount++;
-                cycleQueries++;
+                // cycleQueries++; // Disabled for nuclear load mode
 
                 // INSANE LOAD - no delay, queries fire as fast as possible!
                 // Thread.sleep(1); // Removed - zero delay = INSANE LOAD
 
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.warn("Analytics worker thread {} interrupted", threadId);
-                break;
             } catch (Exception e) {
                 logger.error("Error in analytics worker thread {}: {}", threadId, e.getMessage());
                 NewRelic.noticeError(e);
