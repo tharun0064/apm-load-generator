@@ -40,13 +40,13 @@ public class OltpApplication {
 
     @EventListener(ApplicationReadyEvent.class)
     public void startLoadGeneration() {
-        logger.info("Application ready, cleaning up tables before starting load generation...");
+        logger.info("Application ready, cleaning up and rebuilding seed data...");
 
-        // Clean up all tables before starting
+        // Truncate all tables and repopulate seed data (1000 customers, 500 products)
         try {
-            tableCleanupService.truncateAllTables();
+            tableCleanupService.truncateAndRebuild();
         } catch (Exception e) {
-            logger.error("Failed to clean up tables, aborting startup", e);
+            logger.error("Failed to clean up and rebuild tables, aborting startup", e);
             System.exit(1);
         }
 
