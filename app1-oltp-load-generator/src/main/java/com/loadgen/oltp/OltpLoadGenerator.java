@@ -94,19 +94,10 @@ public class OltpLoadGenerator {
 
         while (running) {
             try {
-                // Check if it's time for a break (ULTRA-RARE breaks for insane load)
-                long currentTime = System.currentTimeMillis();
-                long timeSinceBreak = currentTime - lastBreakTime;
-
-                // Take a break every 2-3 minutes (randomized per thread to avoid all threads breaking at once)
-                int breakInterval = 120000 + random.nextInt(60000); // 120-180 seconds (2-3 minutes)
-                if (timeSinceBreak > breakInterval) {
-                    logger.info("Worker thread {} taking 2-second break after {} operations", threadId, cycleOperations);
-                    Thread.sleep(2000); // 2 second break (ultra-minimal)
-                    lastBreakTime = System.currentTimeMillis();
-                    cycleOperations = 0;
-                    logger.info("Worker thread {} resuming work", threadId);
-                }
+                // BREAKS DISABLED FOR NUCLEAR LOAD - continuous operations without breaks
+                // long currentTime = System.currentTimeMillis();
+                // long timeSinceBreak = currentTime - lastBreakTime;
+                // Break logic commented out for maximum continuous load
 
                 // Randomly select operation type with REDUCED weighted distribution
                 int operation = random.nextInt(100);
@@ -141,8 +132,8 @@ public class OltpLoadGenerator {
                 cycleOperations++;
                 consecutiveErrors = 0; // Reset error counter on success
 
-                // ABSOLUTE MAXIMUM LOAD - near-zero delay for ultimate stress
-                Thread.sleep(random.nextInt(100) + 100); // 100-200ms delay = INSANE LOAD
+                // NUCLEAR LOAD - NO DELAY - operations fire as fast as possible!
+                // Thread.sleep removed - ZERO DELAY
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

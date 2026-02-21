@@ -93,19 +93,10 @@ public class AnalyticsLoadGenerator {
 
         while (running) {
             try {
-                // Check if it's time for a break (ULTRA-RARE breaks for insane load)
-                long currentTime = System.currentTimeMillis();
-                long timeSinceBreak = currentTime - lastBreakTime;
-
-                // Take a break every 3-5 minutes (randomized per thread to avoid all threads breaking at once)
-                int breakInterval = 180000 + random.nextInt(120000); // 180-300 seconds (3-5 minutes)
-                if (timeSinceBreak > breakInterval) {
-                    logger.info("Analytics worker thread {} taking 1-second break after {} queries", threadId, cycleQueries);
-                    Thread.sleep(1000); // 1 second break (ultra-minimal)
-                    lastBreakTime = System.currentTimeMillis();
-                    cycleQueries = 0;
-                    logger.info("Analytics worker thread {} resuming work", threadId);
-                }
+                // BREAKS DISABLED FOR NUCLEAR LOAD - continuous queries without breaks
+                // long currentTime = System.currentTimeMillis();
+                // long timeSinceBreak = currentTime - lastBreakTime;
+                // Break logic commented out for maximum continuous load
 
                 // Randomly select analytical operation
                 int operation = random.nextInt(100);

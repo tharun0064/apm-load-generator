@@ -7,6 +7,18 @@ set -e  # Exit on error
 echo "=========================================="
 echo "Building Oracle Load Generator Applications"
 echo "=========================================="
+echo ""
+
+# Pull latest code from git
+echo "Pulling latest code from git..."
+if git pull; then
+    echo "✓ Code updated successfully"
+else
+    echo "⚠ Git pull failed or not a git repository"
+    echo "Continuing with existing code..."
+fi
+
+echo ""
 
 # Check for Maven
 if ! command -v mvn &> /dev/null; then
