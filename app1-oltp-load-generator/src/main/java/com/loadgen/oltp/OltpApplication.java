@@ -58,11 +58,11 @@ public class OltpApplication {
     }
 
     /**
-     * Scheduled cleanup: Truncate and rebuild tables every 30 minutes
-     * This allows data to accumulate and queries to slow down naturally
+     * Scheduled cleanup: Truncate and rebuild tables every 20 minutes
+     * This allows gradual data accumulation for slow traces
      * while preventing receiver from being overwhelmed
      */
-    @Scheduled(fixedDelay = 1800000, initialDelay = 1800000) // 1800000ms = 30 minutes
+    @Scheduled(fixedDelay = 1200000, initialDelay = 1200000) // 1200000ms = 20 minutes
     public void scheduledCleanup() {
         logger.info("Running scheduled cleanup (every 1 hour)...");
         try {
