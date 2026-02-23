@@ -171,6 +171,7 @@ public class CustomerAnalyticsService {
         executeAnalyticsQuery(sql, "CustomerPurchaseFrequency");
     }
 
+    @Trace
     private void executeAnalyticsQuery(String sql, String queryName) {
         long startTime = System.currentTimeMillis();
 

@@ -182,6 +182,7 @@ public class ProductAnalyticsService {
         executeAnalyticsQuery(sql, "ProductRevenueGrowth");
     }
 
+    @Trace
     private void executeAnalyticsQuery(String sql, String queryName) {
         long startTime = System.currentTimeMillis();
 

@@ -1,5 +1,8 @@
 package com.loadgen.analytics;
 
+import com.newrelic.api.agent.DatastoreParameters;
+import com.newrelic.api.agent.NewRelic;
+import com.newrelic.api.agent.Segment;
 import com.newrelic.api.agent.Trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -169,9 +172,21 @@ public class HeavyTransactionService {
 
         logger.info("Starting {} - This will take 5-10 seconds due to complex multi-table JOINs and aggregations", queryName);
 
+        // Create explicit database segment for New Relic
+        DatastoreParameters params = DatastoreParameters
+            .product("Oracle")
+            .collection("customer_data")
+            .operation(queryName)
+            .build();
+
+        Segment segment = NewRelic.getAgent().getTransaction().startSegment(queryName);
+
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
              ResultSet rs = pstmt.executeQuery()) {
+
+            // Report as datastore operation
+            segment.reportAsExternal(params);
 
             // Process the result set to ensure full query execution
             while (rs.next()) {
@@ -200,6 +215,8 @@ public class HeavyTransactionService {
             long duration = System.currentTimeMillis() - startTime;
             logger.error("Error executing {} after {} ms: {}", queryName, duration, e.getMessage(), e);
             throw new RuntimeException("Failed to execute heavy transaction analysis: " + e.getMessage(), e);
+        } finally {
+            segment.end();
         }
 
         return rowCount;

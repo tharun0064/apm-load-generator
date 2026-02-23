@@ -213,6 +213,7 @@ public class DataWarehouseService {
         }
     }
 
+    @Trace
     private void executeDataWarehouseOperation(String sql, String operationName) {
         long startTime = System.currentTimeMillis();
 

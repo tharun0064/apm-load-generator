@@ -161,6 +161,7 @@ public class ReportingService {
         executeReportQuery(sql, "TransactionReport");
     }
 
+    @Trace
     private void executeReportQuery(String sql, String reportName) {
         long startTime = System.currentTimeMillis();
 

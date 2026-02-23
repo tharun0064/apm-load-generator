@@ -134,6 +134,7 @@ public class SalesAnalyticsService {
         executeAnalyticsQuery(sql, "SalesPerformanceByHour");
     }
 
+    @Trace
     private void executeAnalyticsQuery(String sql, String queryName) {
         long startTime = System.currentTimeMillis();
 
