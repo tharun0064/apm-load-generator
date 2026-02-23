@@ -322,23 +322,8 @@ public class AnalyticsController {
     @Trace(dispatcher = true)
     public ResponseEntity<Map<String, Object>> getCustomerData() {
         try {
-            long startTime = System.currentTimeMillis();
-            int rowCount = heavyTransactionService.performHeavyTransaction();
-            long duration = System.currentTimeMillis() - startTime;
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "SUCCESS");
-            response.put("operation", "customer_data");
-            response.put("recordsReturned", rowCount);
-            response.put("durationMs", duration);
-            response.put("durationSeconds", String.format("%.2f", duration / 1000.0));
-            response.put("message", "Customer data with order history and product details retrieved successfully");
-
-            NewRelic.addCustomParameter("recordsReturned", rowCount);
-            NewRelic.addCustomParameter("durationMs", duration);
-
-            logger.info("Customer data query completed: {} records in {} ms", rowCount, duration);
-            return ResponseEntity.ok(response);
+            heavyTransactionService.performHeavyTransaction();
+            return createSuccessResponse("customer_data");
         } catch (Exception e) {
             return handleError(e, "getCustomerData");
         }

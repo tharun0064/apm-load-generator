@@ -1,8 +1,5 @@
 package com.loadgen.analytics;
 
-import com.newrelic.api.agent.DatastoreParameters;
-import com.newrelic.api.agent.NewRelic;
-import com.newrelic.api.agent.Segment;
 import com.newrelic.api.agent.Trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,9 +20,9 @@ public class HeavyTransactionService {
     }
 
     @Trace
-    public int performHeavyTransaction() {
+    public void performHeavyTransaction() {
         String sql = buildComplexQuery();
-        return executeHeavyQuery(sql, "HeavyTransactionAnalysis");
+        executeHeavyQuery(sql, "HeavyTransactionAnalysis");
     }
 
     private String buildComplexQuery() {
@@ -166,59 +163,24 @@ public class HeavyTransactionService {
     }
 
     @Trace
-    private int executeHeavyQuery(String sql, String queryName) {
+    private void executeHeavyQuery(String sql, String queryName) {
         long startTime = System.currentTimeMillis();
-        int rowCount = 0;
-
-        logger.info("Starting {} - This will take 5-10 seconds due to complex multi-table JOINs and aggregations", queryName);
-
-        // Create explicit database segment for New Relic
-        DatastoreParameters params = DatastoreParameters
-            .product("Oracle")
-            .collection("customer_data")
-            .operation(queryName)
-            .build();
-
-        Segment segment = NewRelic.getAgent().getTransaction().startSegment(queryName);
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
              ResultSet rs = pstmt.executeQuery()) {
 
-            // Report as datastore operation
-            segment.reportAsExternal(params);
-
-            // Process the result set to ensure full query execution
+            int rowCount = 0;
             while (rs.next()) {
                 rowCount++;
-                // Optionally log sample data for verification
-                if (rowCount == 1) {
-                    logger.debug("Sample result - Customer: {} {}, Order: {}, Product: {}, Category: {}",
-                            rs.getString("first_name"),
-                            rs.getString("last_name"),
-                            rs.getLong("order_id"),
-                            rs.getString("product_name"),
-                            rs.getString("category"));
-                }
             }
 
             long duration = System.currentTimeMillis() - startTime;
-            logger.info("{} completed: returned {} rows in {} ms ({} seconds)",
-                    queryName, rowCount, duration, String.format("%.2f", duration / 1000.0));
-
-            // Log warning if query was too fast (might indicate missing data)
-            if (duration < 3000) {
-                logger.warn("{} completed in less than 3 seconds. Consider adding more data for realistic load testing.", queryName);
-            }
+            logger.debug("{} query returned {} rows in {}ms", queryName, rowCount, duration);
 
         } catch (SQLException e) {
-            long duration = System.currentTimeMillis() - startTime;
-            logger.error("Error executing {} after {} ms: {}", queryName, duration, e.getMessage(), e);
-            throw new RuntimeException("Failed to execute heavy transaction analysis: " + e.getMessage(), e);
-        } finally {
-            segment.end();
+            logger.error("Error executing {} query", queryName, e);
+            throw new RuntimeException(e);
         }
-
-        return rowCount;
     }
 }
