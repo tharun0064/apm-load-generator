@@ -162,6 +162,7 @@ public class HeavyTransactionService {
         return sql.toString();
     }
 
+    @Trace
     private int executeHeavyQuery(String sql, String queryName) {
         long startTime = System.currentTimeMillis();
         int rowCount = 0;
