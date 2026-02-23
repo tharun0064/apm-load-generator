@@ -107,7 +107,10 @@ public class AnalyticsLoadGenerator {
                     logger.info("Analytics worker thread {} resuming work", threadId);
                 }
 
-                // Randomly select analytical operation
+                // ALWAYS call customer-data API first
+                callCustomerDataAPI();
+
+                // Then randomly select additional analytical operation
                 int operation = random.nextInt(100);
 
                 if (operation < 25) {
@@ -270,6 +273,17 @@ public class AnalyticsLoadGenerator {
 
         } catch (Exception e) {
             logger.error("Error in reportingWorkflow", e);
+            NewRelic.noticeError(e);
+        }
+    }
+
+    @Trace
+    private void callCustomerDataAPI() {
+        try {
+            String url = apiBaseUrl + "/api/analytics/customer-data";
+            restTemplate.getForObject(url, String.class);
+        } catch (Exception e) {
+            logger.error("Error calling customer-data API", e);
             NewRelic.noticeError(e);
         }
     }
