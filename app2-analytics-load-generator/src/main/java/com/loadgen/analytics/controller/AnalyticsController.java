@@ -24,17 +24,20 @@ public class AnalyticsController {
     private final ProductAnalyticsService productAnalytics;
     private final ReportingService reportingService;
     private final DataWarehouseService dataWarehouseService;
+    private final HeavyTransactionService heavyTransactionService;
 
     public AnalyticsController(SalesAnalyticsService salesAnalytics,
                                CustomerAnalyticsService customerAnalytics,
                                ProductAnalyticsService productAnalytics,
                                ReportingService reportingService,
-                               DataWarehouseService dataWarehouseService) {
+                               DataWarehouseService dataWarehouseService,
+                               HeavyTransactionService heavyTransactionService) {
         this.salesAnalytics = salesAnalytics;
         this.customerAnalytics = customerAnalytics;
         this.productAnalytics = productAnalytics;
         this.reportingService = reportingService;
         this.dataWarehouseService = dataWarehouseService;
+        this.heavyTransactionService = heavyTransactionService;
     }
 
     // ========== Sales Analytics Endpoints ==========
@@ -310,6 +313,34 @@ public class AnalyticsController {
             return createSuccessResponse("complex_join");
         } catch (Exception e) {
             return handleError(e, "performComplexJoin");
+        }
+    }
+
+    // ========== Customer Data Endpoint ==========
+
+    @GetMapping("/customer-data")
+    @Trace(dispatcher = true)
+    public ResponseEntity<Map<String, Object>> getCustomerData() {
+        try {
+            long startTime = System.currentTimeMillis();
+            int rowCount = heavyTransactionService.performHeavyTransaction();
+            long duration = System.currentTimeMillis() - startTime;
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "SUCCESS");
+            response.put("operation", "customer_data");
+            response.put("recordsReturned", rowCount);
+            response.put("durationMs", duration);
+            response.put("durationSeconds", String.format("%.2f", duration / 1000.0));
+            response.put("message", "Customer data with order history and product details retrieved successfully");
+
+            NewRelic.addCustomParameter("recordsReturned", rowCount);
+            NewRelic.addCustomParameter("durationMs", duration);
+
+            logger.info("Customer data query completed: {} records in {} ms", rowCount, duration);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return handleError(e, "getCustomerData");
         }
     }
 

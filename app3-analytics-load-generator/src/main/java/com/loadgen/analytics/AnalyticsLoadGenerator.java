@@ -277,7 +277,7 @@ public class AnalyticsLoadGenerator {
     @Trace
     private void dataWarehouseWorkflow() {
         try {
-            int choice = random.nextInt(5);
+            int choice = random.nextInt(6);
             String url;
 
             switch (choice) {
@@ -298,9 +298,14 @@ public class AnalyticsLoadGenerator {
                     url = apiBaseUrl + "/api/analytics/warehouse/full-scan";
                     restTemplate.getForObject(url, String.class);
                     break;
-                default:
+                case 4:
                     // VERY HEAVY - Complex 5-table join
                     url = apiBaseUrl + "/api/analytics/warehouse/complex-join";
+                    restTemplate.getForObject(url, String.class);
+                    break;
+                default:
+                    // VERY HEAVY - Customer data with comprehensive order and product history (5-10 seconds)
+                    url = apiBaseUrl + "/api/analytics/customer-data";
                     restTemplate.getForObject(url, String.class);
                     break;
             }
