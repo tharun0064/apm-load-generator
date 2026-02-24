@@ -129,13 +129,8 @@ public class CustomerDataService {
              PreparedStatement pstmt = conn.prepareStatement(sql);
              ResultSet rs = pstmt.executeQuery()) {
 
-            int rowCount = 0;
-            while (rs.next()) {
-                rowCount++;
-            }
-
             long duration = System.currentTimeMillis() - startTime;
-            logger.debug("{} query returned {} rows in {}ms", queryName, rowCount, duration);
+            logger.debug("{} query executed in {}ms", queryName, duration);
 
         } catch (SQLException e) {
             logger.error("Error executing {} query", queryName, e);
