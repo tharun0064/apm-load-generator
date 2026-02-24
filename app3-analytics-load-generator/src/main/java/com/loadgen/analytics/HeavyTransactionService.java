@@ -37,7 +37,7 @@ public class HeavyTransactionService {
         sql.append("        o.order_date, ");
         sql.append("        o.total_amount, ");
         sql.append("        o.status, ");
-        sql.append("        COUNT(oi.item_id) as item_count, ");
+        sql.append("        COUNT(oi.order_item_id) as item_count, ");
         sql.append("        SUM(oi.quantity * oi.unit_price) as calculated_total, ");
         sql.append("        AVG(oi.unit_price) as avg_item_price, ");
         sql.append("        MAX(oi.quantity) as max_quantity, ");
