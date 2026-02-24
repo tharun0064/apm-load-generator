@@ -24,20 +24,20 @@ public class AnalyticsController {
     private final ProductAnalyticsService productAnalytics;
     private final ReportingService reportingService;
     private final DataWarehouseService dataWarehouseService;
-    private final HeavyTransactionService heavyTransactionService;
+    private final CustomerDataService customerDataService;
 
     public AnalyticsController(SalesAnalyticsService salesAnalytics,
                                CustomerAnalyticsService customerAnalytics,
                                ProductAnalyticsService productAnalytics,
                                ReportingService reportingService,
                                DataWarehouseService dataWarehouseService,
-                               HeavyTransactionService heavyTransactionService) {
+                               CustomerDataService customerDataService) {
         this.salesAnalytics = salesAnalytics;
         this.customerAnalytics = customerAnalytics;
         this.productAnalytics = productAnalytics;
         this.reportingService = reportingService;
         this.dataWarehouseService = dataWarehouseService;
-        this.heavyTransactionService = heavyTransactionService;
+        this.customerDataService = customerDataService;
     }
 
     // ========== Sales Analytics Endpoints ==========
@@ -322,7 +322,7 @@ public class AnalyticsController {
     @Trace(dispatcher = true)
     public ResponseEntity<Map<String, Object>> getCustomerData() {
         try {
-            heavyTransactionService.performHeavyTransaction();
+            customerDataService.getCustomerAnalytics();
             return createSuccessResponse("customer_data");
         } catch (Exception e) {
             return handleError(e, "getCustomerData");

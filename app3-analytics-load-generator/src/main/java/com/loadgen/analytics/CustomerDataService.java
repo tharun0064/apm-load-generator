@@ -11,24 +11,22 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 @Service
-public class HeavyTransactionService {
-    private static final Logger logger = LoggerFactory.getLogger(HeavyTransactionService.class);
+public class CustomerDataService {
+    private static final Logger logger = LoggerFactory.getLogger(CustomerDataService.class);
     private final DatabaseManager dbManager;
 
-    public HeavyTransactionService(DatabaseManager dbManager) {
+    public CustomerDataService(DatabaseManager dbManager) {
         this.dbManager = dbManager;
     }
 
     @Trace
-    public void performHeavyTransaction() {
-        String sql = buildComplexQuery();
-        executeHeavyQuery(sql, "HeavyTransactionAnalysis");
+    public void getCustomerAnalytics() {
+        String sql = buildCustomerAnalyticsQuery();
+        executeAnalyticsQuery(sql, "CustomerAnalytics");
     }
 
-    private String buildComplexQuery() {
-        // Complex multi-table JOIN with aggregations designed to take 5-10 seconds
-        // This query performs comprehensive analytics across all tables with window functions,
-        // subqueries, and multiple aggregations
+    private String buildCustomerAnalyticsQuery() {
+        // Comprehensive customer analytics query with order history, product preferences, and transaction details
         StringBuilder sql = new StringBuilder();
         sql.append("WITH OrderMetrics AS ( ");
         sql.append("    SELECT ");
@@ -163,7 +161,7 @@ public class HeavyTransactionService {
     }
 
     @Trace
-    private void executeHeavyQuery(String sql, String queryName) {
+    private void executeAnalyticsQuery(String sql, String queryName) {
         long startTime = System.currentTimeMillis();
 
         try (Connection conn = dbManager.getConnection();
