@@ -21,136 +21,111 @@ public class CustomerDataService {
 
     @Trace
     public void getCustomerAnalytics() {
-        // Comprehensive customer analytics query
-        String sql = "WITH OrderMetrics AS ( " +
-                     "    SELECT " +
-                     "        o.order_id, " +
-                     "        o.customer_id, " +
-                     "        o.order_date, " +
-                     "        o.total_amount, " +
-                     "        o.status, " +
-                     "        COUNT(oi.order_item_id) as item_count, " +
-                     "        SUM(oi.quantity * oi.unit_price) as calculated_total, " +
-                     "        AVG(oi.unit_price) as avg_item_price, " +
-                     "        MAX(oi.quantity) as max_quantity, " +
-                     "        MIN(oi.unit_price) as min_price " +
-                     "    FROM oltp_user.ORDERS o " +
-                     "    INNER JOIN oltp_user.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
-                     "    WHERE o.order_date >= ADD_MONTHS(SYSDATE, -12) " +
-                     "    GROUP BY o.order_id, o.customer_id, o.order_date, o.total_amount, o.status " +
-                     "), " +
-                     "CustomerStats AS ( " +
-                     "    SELECT " +
-                     "        c.customer_id, " +
-                     "        c.first_name, " +
-                     "        c.last_name, " +
-                     "        c.email, " +
-                     "        c.city, " +
-                     "        c.state, " +
-                     "        COUNT(DISTINCT o.order_id) as total_orders, " +
-                     "        SUM(o.total_amount) as lifetime_value, " +
-                     "        AVG(o.total_amount) as avg_order_value, " +
-                     "        MAX(o.order_date) as last_order_date, " +
-                     "        ROUND(MONTHS_BETWEEN(SYSDATE, MAX(o.order_date)), 2) as months_since_last_order " +
-                     "    FROM oltp_user.CUSTOMERS c " +
-                     "    LEFT JOIN oltp_user.ORDERS o ON c.customer_id = o.customer_id " +
-                     "    GROUP BY c.customer_id, c.first_name, c.last_name, c.email, c.city, c.state " +
-                     "), " +
-                     "ProductPerformance AS ( " +
-                     "    SELECT " +
-                     "        p.product_id, " +
-                     "        p.product_name, " +
-                     "        p.category, " +
-                     "        p.brand, " +
-                     "        p.price as current_price, " +
-                     "        COUNT(DISTINCT oi.order_id) as times_ordered, " +
-                     "        SUM(oi.quantity) as total_quantity_sold, " +
-                     "        SUM(oi.quantity * oi.unit_price) as total_revenue, " +
-                     "        AVG(oi.quantity) as avg_quantity_per_order, " +
-                     "        RANK() OVER (PARTITION BY p.category ORDER BY SUM(oi.quantity) DESC) as category_rank " +
-                     "    FROM oltp_user.PRODUCTS p " +
-                     "    LEFT JOIN oltp_user.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
-                     "    LEFT JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id AND o.order_date >= ADD_MONTHS(SYSDATE, -12) " +
-                     "    GROUP BY p.product_id, p.product_name, p.category, p.brand, p.price " +
-                     "), " +
-                     "TransactionAnalysis AS ( " +
-                     "    SELECT " +
-                     "        t.transaction_id, " +
-                     "        t.order_id, " +
-                     "        t.payment_method, " +
-                     "        t.amount, " +
-                     "        t.status as payment_status, " +
-                     "        t.transaction_date, " +
-                     "        CASE " +
-                     "            WHEN t.payment_method = 'Credit Card' THEN 'Card Payment' " +
-                     "            WHEN t.payment_method = 'PayPal' THEN 'Digital Wallet' " +
-                     "            WHEN t.payment_method = 'Debit Card' THEN 'Card Payment' " +
-                     "            ELSE 'Other' " +
-                     "        END as payment_category, " +
-                     "        TRUNC(t.transaction_date) as transaction_day, " +
-                     "        TO_CHAR(t.transaction_date, 'HH24') as transaction_hour " +
-                     "    FROM oltp_user.TRANSACTIONS t " +
-                     "    WHERE t.transaction_date >= ADD_MONTHS(SYSDATE, -12) " +
-                     ") " +
-                     "SELECT " +
-                     "    cs.customer_id, " +
-                     "    cs.first_name, " +
-                     "    cs.last_name, " +
-                     "    cs.email, " +
-                     "    cs.city, " +
-                     "    cs.state, " +
-                     "    cs.total_orders, " +
-                     "    cs.lifetime_value, " +
-                     "    cs.avg_order_value, " +
-                     "    cs.months_since_last_order, " +
-                     "    om.order_id, " +
-                     "    om.order_date, " +
-                     "    om.total_amount as order_amount, " +
-                     "    om.status as order_status, " +
-                     "    om.item_count, " +
-                     "    om.calculated_total, " +
-                     "    om.avg_item_price, " +
-                     "    om.max_quantity, " +
-                     "    om.min_price, " +
-                     "    pp.product_id, " +
-                     "    pp.product_name, " +
-                     "    pp.category, " +
-                     "    pp.brand, " +
-                     "    pp.current_price, " +
-                     "    pp.times_ordered, " +
-                     "    pp.total_quantity_sold, " +
-                     "    pp.total_revenue, " +
-                     "    pp.category_rank, " +
-                     "    ta.transaction_id, " +
-                     "    ta.payment_method, " +
-                     "    ta.payment_category, " +
-                     "    ta.payment_status, " +
-                     "    ta.transaction_hour, " +
-                     "    inv.quantity_on_hand as current_inventory, " +
-                     "    inv.reorder_level, " +
-                     "    CASE " +
-                     "        WHEN inv.quantity_on_hand < inv.reorder_level THEN 'Low Stock' " +
-                     "        WHEN inv.quantity_on_hand < inv.reorder_level * 2 THEN 'Medium Stock' " +
-                     "        ELSE 'High Stock' " +
-                     "    END as stock_level, " +
-                     "    ROW_NUMBER() OVER (PARTITION BY cs.customer_id ORDER BY om.order_date DESC) as customer_order_rank, " +
-                     "    SUM(om.total_amount) OVER (PARTITION BY cs.state) as state_total_revenue, " +
-                     "    AVG(om.total_amount) OVER (PARTITION BY pp.category) as category_avg_order, " +
-                     "    COUNT(*) OVER (PARTITION BY ta.payment_category) as payment_category_count, " +
-                     "    DENSE_RANK() OVER (ORDER BY cs.lifetime_value DESC) as customer_value_rank " +
-                     "FROM CustomerStats cs " +
-                     "INNER JOIN OrderMetrics om ON cs.customer_id = om.customer_id " +
-                     "INNER JOIN oltp_user.ORDER_ITEMS oi ON om.order_id = oi.order_id " +
-                     "INNER JOIN ProductPerformance pp ON oi.product_id = pp.product_id " +
-                     "LEFT JOIN TransactionAnalysis ta ON om.order_id = ta.order_id " +
-                     "LEFT JOIN oltp_user.INVENTORY inv ON pp.product_id = inv.product_id " +
-                     "WHERE cs.total_orders > 0 " +
-                     "    AND om.total_amount > 0 " +
-                     "    AND pp.total_quantity_sold > 0 " +
+        // Comprehensive full database scan across all tables with complex analytics
+        String sql = "SELECT " +
+                     "  c.customer_id, " +
+                     "  c.first_name || ' ' || c.last_name as customer_name, " +
+                     "  c.email, " +
+                     "  c.phone, " +
+                     "  c.address, " +
+                     "  c.city, " +
+                     "  c.state, " +
+                     "  c.country, " +
+                     "  c.postal_code, " +
+                     "  c.customer_type, " +
+                     "  c.credit_limit, " +
+                     "  c.loyalty_points, " +
+                     "  o.order_id, " +
+                     "  o.order_date, " +
+                     "  o.total_amount, " +
+                     "  o.status as order_status, " +
+                     "  o.payment_method, " +
+                     "  o.shipping_cost, " +
+                     "  o.tax_amount, " +
+                     "  oi.order_item_id, " +
+                     "  oi.quantity, " +
+                     "  oi.unit_price, " +
+                     "  oi.subtotal, " +
+                     "  p.product_id, " +
+                     "  p.product_name, " +
+                     "  p.description, " +
+                     "  p.category, " +
+                     "  p.subcategory, " +
+                     "  p.brand, " +
+                     "  p.supplier, " +
+                     "  p.price as current_price, " +
+                     "  p.cost, " +
+                     "  p.weight, " +
+                     "  p.dimensions, " +
+                     "  p.is_active, " +
+                     "  inv.inventory_id, " +
+                     "  inv.quantity_on_hand, " +
+                     "  inv.quantity_available, " +
+                     "  inv.quantity_reserved, " +
+                     "  inv.reorder_level, " +
+                     "  inv.reorder_quantity, " +
+                     "  inv.warehouse_location, " +
+                     "  t.transaction_id, " +
+                     "  t.payment_method as transaction_payment_method, " +
+                     "  t.payment_gateway, " +
+                     "  t.transaction_type, " +
+                     "  t.amount as transaction_amount, " +
+                     "  t.status as transaction_status, " +
+                     "  t.transaction_date, " +
+                     "  t.processed_at, " +
+                     "  t.confirmation_number, " +
+                     "  COUNT(*) OVER (PARTITION BY c.customer_id) as customer_total_orders, " +
+                     "  SUM(o.total_amount) OVER (PARTITION BY c.customer_id) as customer_lifetime_value, " +
+                     "  AVG(o.total_amount) OVER (PARTITION BY c.customer_id) as customer_avg_order, " +
+                     "  MAX(o.order_date) OVER (PARTITION BY c.customer_id) as customer_last_order_date, " +
+                     "  COUNT(*) OVER (PARTITION BY p.category) as category_order_count, " +
+                     "  SUM(oi.subtotal) OVER (PARTITION BY p.category) as category_revenue, " +
+                     "  AVG(oi.unit_price) OVER (PARTITION BY p.category) as category_avg_price, " +
+                     "  COUNT(*) OVER (PARTITION BY c.state) as state_order_count, " +
+                     "  SUM(o.total_amount) OVER (PARTITION BY c.state) as state_total_revenue, " +
+                     "  COUNT(*) OVER (PARTITION BY p.brand) as brand_order_count, " +
+                     "  SUM(oi.quantity) OVER (PARTITION BY p.brand) as brand_units_sold, " +
+                     "  RANK() OVER (PARTITION BY c.customer_id ORDER BY o.order_date DESC) as customer_order_rank, " +
+                     "  RANK() OVER (PARTITION BY p.category ORDER BY oi.subtotal DESC) as category_revenue_rank, " +
+                     "  DENSE_RANK() OVER (ORDER BY o.total_amount DESC) as overall_order_value_rank, " +
+                     "  ROW_NUMBER() OVER (PARTITION BY c.state ORDER BY o.order_date DESC) as state_order_sequence, " +
+                     "  ROUND(MONTHS_BETWEEN(SYSDATE, o.order_date), 2) as months_since_order, " +
+                     "  ROUND(MONTHS_BETWEEN(SYSDATE, c.created_at), 2) as customer_age_months, " +
+                     "  CASE " +
+                     "    WHEN o.total_amount > 1000 THEN 'High Value' " +
+                     "    WHEN o.total_amount > 500 THEN 'Medium Value' " +
+                     "    ELSE 'Low Value' " +
+                     "  END as order_value_category, " +
+                     "  CASE " +
+                     "    WHEN inv.quantity_on_hand < inv.reorder_level THEN 'Critical' " +
+                     "    WHEN inv.quantity_on_hand < inv.reorder_level * 2 THEN 'Low' " +
+                     "    WHEN inv.quantity_on_hand < inv.reorder_level * 5 THEN 'Medium' " +
+                     "    ELSE 'High' " +
+                     "  END as inventory_status, " +
+                     "  (oi.subtotal - (oi.quantity * p.cost)) as item_profit, " +
+                     "  ROUND((oi.subtotal - (oi.quantity * p.cost)) / NULLIF(oi.subtotal, 0) * 100, 2) as item_profit_margin, " +
+                     "  (inv.quantity_on_hand * p.cost) as inventory_value_at_cost, " +
+                     "  (inv.quantity_on_hand * p.price) as inventory_value_at_retail, " +
+                     "  EXTRACT(YEAR FROM o.order_date) as order_year, " +
+                     "  EXTRACT(MONTH FROM o.order_date) as order_month, " +
+                     "  EXTRACT(DAY FROM o.order_date) as order_day, " +
+                     "  TO_CHAR(o.order_date, 'Day') as order_day_name, " +
+                     "  TO_CHAR(o.order_date, 'HH24:MI:SS') as order_time, " +
+                     "  TRUNC(o.order_date) as order_date_only " +
+                     "FROM oltp_user.CUSTOMERS c " +
+                     "CROSS JOIN oltp_user.ORDERS o " +
+                     "INNER JOIN oltp_user.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
+                     "INNER JOIN oltp_user.PRODUCTS p ON oi.product_id = p.product_id " +
+                     "LEFT JOIN oltp_user.INVENTORY inv ON p.product_id = inv.product_id " +
+                     "LEFT JOIN oltp_user.TRANSACTIONS t ON o.order_id = t.order_id " +
+                     "WHERE c.customer_id = o.customer_id " +
+                     "  OR (o.order_date >= ADD_MONTHS(SYSDATE, -24) AND LENGTH(c.email) > 5) " +
                      "ORDER BY " +
-                     "    cs.lifetime_value DESC, " +
-                     "    om.order_date DESC, " +
-                     "    pp.category_rank ASC";
+                     "  DBMS_RANDOM.VALUE, " +
+                     "  c.customer_id, " +
+                     "  o.order_date DESC, " +
+                     "  p.category, " +
+                     "  oi.subtotal DESC";
 
         executeAnalyticsQuery(sql, "CustomerAnalytics");
     }
