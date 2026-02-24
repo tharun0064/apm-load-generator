@@ -21,8 +21,8 @@ public class CustomerDataService {
 
     @Trace
     public void getCustomerAnalytics() {
-        // Comprehensive full database scan across all tables with complex analytics
-        String sql = "SELECT " +
+        // Heavy multi-table join query
+        String sql = "SELECT /*+ FULL(c) FULL(o) FULL(oi) FULL(p) FULL(inv) FULL(t) */ " +
                      "  c.customer_id, " +
                      "  c.first_name || ' ' || c.last_name as customer_name, " +
                      "  c.email, " +
@@ -112,25 +112,19 @@ public class CustomerDataService {
                      "  TO_CHAR(o.order_date, 'Day') as order_day_name, " +
                      "  TO_CHAR(o.order_date, 'HH24:MI:SS') as order_time, " +
                      "  TRUNC(o.order_date) as order_date_only " +
-                     "FROM oltp_user.CUSTOMERS c " +
-                     "CROSS JOIN oltp_user.ORDERS o " +
-                     "INNER JOIN oltp_user.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
-                     "INNER JOIN oltp_user.PRODUCTS p ON oi.product_id = p.product_id " +
-                     "LEFT JOIN oltp_user.INVENTORY inv ON p.product_id = inv.product_id " +
-                     "LEFT JOIN oltp_user.TRANSACTIONS t ON o.order_id = t.order_id " +
+                     "FROM oltp_user.CUSTOMERS c, oltp_user.ORDERS o, oltp_user.ORDER_ITEMS oi, " +
+                     "     oltp_user.PRODUCTS p, oltp_user.INVENTORY inv, oltp_user.TRANSACTIONS t " +
                      "WHERE c.customer_id = o.customer_id " +
-                     "  OR (o.order_date >= ADD_MONTHS(SYSDATE, -24) AND LENGTH(c.email) > 5) " +
-                     "ORDER BY " +
-                     "  DBMS_RANDOM.VALUE, " +
-                     "  c.customer_id, " +
-                     "  o.order_date DESC, " +
-                     "  p.category, " +
-                     "  oi.subtotal DESC";
+                     "  AND o.order_id = oi.order_id " +
+                     "  AND oi.product_id = p.product_id " +
+                     "  AND p.product_id = inv.product_id " +
+                     "  AND o.order_id = t.order_id " +
+                     "  AND o.order_date >= ADD_MONTHS(SYSDATE, -24) " +
+                     "ORDER BY c.customer_id, o.order_date DESC, oi.subtotal DESC";
 
         executeAnalyticsQuery(sql, "CustomerAnalytics");
     }
 
-    @Trace
     private void executeAnalyticsQuery(String sql, String queryName) {
         long startTime = System.currentTimeMillis();
 
