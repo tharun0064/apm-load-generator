@@ -22,7 +22,7 @@ public class CustomerDataService {
     @Trace
     public void getCustomerAnalytics() {
         // Heavy multi-table join query with full table scans
-        String sql = "SELECT /*+ FULL(c) FULL(o) FULL(oi) FULL(p) FULL(inv) FULL(t) */ " +
+        String sql = "SELECT" +
                      "  c.customer_id, " +
                      "  c.first_name || ' ' || c.last_name as customer_name, " +
                      "  c.email, " +
