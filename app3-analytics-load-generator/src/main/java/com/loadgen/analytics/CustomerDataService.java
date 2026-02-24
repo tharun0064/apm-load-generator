@@ -59,7 +59,6 @@ public class CustomerDataService {
                      "  p.dimensions, " +
                      "  p.is_active, " +
                      "  inv.inventory_id, " +
-                     "  inv.quantity_on_hand, " +
                      "  inv.quantity_available, " +
                      "  inv.quantity_reserved, " +
                      "  inv.reorder_level, " +
@@ -97,15 +96,15 @@ public class CustomerDataService {
                      "    ELSE 'Low Value' " +
                      "  END as order_value_category, " +
                      "  CASE " +
-                     "    WHEN inv.quantity_on_hand < inv.reorder_level THEN 'Critical' " +
-                     "    WHEN inv.quantity_on_hand < inv.reorder_level * 2 THEN 'Low' " +
-                     "    WHEN inv.quantity_on_hand < inv.reorder_level * 5 THEN 'Medium' " +
+                     "    WHEN inv.quantity_available < inv.reorder_level THEN 'Critical' " +
+                     "    WHEN inv.quantity_available < inv.reorder_level * 2 THEN 'Low' " +
+                     "    WHEN inv.quantity_available < inv.reorder_level * 5 THEN 'Medium' " +
                      "    ELSE 'High' " +
                      "  END as inventory_status, " +
                      "  (oi.subtotal - (oi.quantity * p.cost)) as item_profit, " +
                      "  ROUND((oi.subtotal - (oi.quantity * p.cost)) / NULLIF(oi.subtotal, 0) * 100, 2) as item_profit_margin, " +
-                     "  (inv.quantity_on_hand * p.cost) as inventory_value_at_cost, " +
-                     "  (inv.quantity_on_hand * p.price) as inventory_value_at_retail, " +
+                     "  (inv.quantity_available * p.cost) as inventory_value_at_cost, " +
+                     "  (inv.quantity_available * p.price) as inventory_value_at_retail, " +
                      "  EXTRACT(YEAR FROM o.order_date) as order_year, " +
                      "  EXTRACT(MONTH FROM o.order_date) as order_month, " +
                      "  EXTRACT(DAY FROM o.order_date) as order_day, " +
@@ -117,14 +116,16 @@ public class CustomerDataService {
                      "WHERE c.customer_id = o.customer_id " +
                      "  AND o.order_id = oi.order_id " +
                      "  AND oi.product_id = p.product_id " +
-                     "  AND p.product_id = inv.product_id " +
-                     "  AND o.order_id = t.order_id " +
+                     "  AND p.product_id = inv.product_id(+) " +
+                     "  AND o.order_id = t.order_id(+) " +
                      "  AND o.order_date >= ADD_MONTHS(SYSDATE, -24) " +
-                     "ORDER BY c.customer_id, o.order_date DESC, oi.subtotal DESC";
+                     "ORDER BY c.customer_id, o.order_date DESC, oi.subtotal DESC " +
+                     "FETCH FIRST 500 ROWS ONLY";
 
         executeAnalyticsQuery(sql, "CustomerAnalytics");
     }
 
+    @Trace
     private void executeAnalyticsQuery(String sql, String queryName) {
         long startTime = System.currentTimeMillis();
 
