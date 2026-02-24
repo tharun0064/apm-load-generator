@@ -21,19 +21,17 @@ public class CustomerDataService {
 
     @Trace
     public void getCustomerAnalytics() {
-        // Heavy multi-table join query
+        // Heavy multi-table join query with full table scans
         String sql = "SELECT /*+ FULL(c) FULL(o) FULL(oi) FULL(p) FULL(inv) FULL(t) */ " +
                      "  c.customer_id, " +
                      "  c.first_name || ' ' || c.last_name as customer_name, " +
                      "  c.email, " +
                      "  c.phone, " +
-                     "  c.address, " +
                      "  c.city, " +
                      "  c.state, " +
+                     "  c.zip_code, " +
                      "  c.country, " +
-                     "  c.postal_code, " +
                      "  c.customer_type, " +
-                     "  c.credit_limit, " +
                      "  c.loyalty_points, " +
                      "  o.order_id, " +
                      "  o.order_date, " +
@@ -42,17 +40,19 @@ public class CustomerDataService {
                      "  o.payment_method, " +
                      "  o.shipping_cost, " +
                      "  o.tax_amount, " +
+                     "  o.tracking_number, " +
                      "  oi.order_item_id, " +
                      "  oi.quantity, " +
                      "  oi.unit_price, " +
+                     "  oi.discount, " +
                      "  oi.subtotal, " +
                      "  p.product_id, " +
                      "  p.product_name, " +
                      "  p.description, " +
                      "  p.category, " +
                      "  p.subcategory, " +
-                     "  p.brand, " +
-                     "  p.supplier, " +
+                     "  p.manufacturer, " +
+                     "  p.sku, " +
                      "  p.price as current_price, " +
                      "  p.cost, " +
                      "  p.weight, " +
@@ -62,17 +62,13 @@ public class CustomerDataService {
                      "  inv.quantity_available, " +
                      "  inv.quantity_reserved, " +
                      "  inv.reorder_level, " +
-                     "  inv.reorder_quantity, " +
                      "  inv.warehouse_location, " +
                      "  t.transaction_id, " +
-                     "  t.payment_method as transaction_payment_method, " +
                      "  t.payment_gateway, " +
                      "  t.transaction_type, " +
                      "  t.amount as transaction_amount, " +
                      "  t.status as transaction_status, " +
-                     "  t.transaction_date, " +
                      "  t.processed_at, " +
-                     "  t.confirmation_number, " +
                      "  COUNT(*) OVER (PARTITION BY c.customer_id) as customer_total_orders, " +
                      "  SUM(o.total_amount) OVER (PARTITION BY c.customer_id) as customer_lifetime_value, " +
                      "  AVG(o.total_amount) OVER (PARTITION BY c.customer_id) as customer_avg_order, " +
@@ -82,8 +78,8 @@ public class CustomerDataService {
                      "  AVG(oi.unit_price) OVER (PARTITION BY p.category) as category_avg_price, " +
                      "  COUNT(*) OVER (PARTITION BY c.state) as state_order_count, " +
                      "  SUM(o.total_amount) OVER (PARTITION BY c.state) as state_total_revenue, " +
-                     "  COUNT(*) OVER (PARTITION BY p.brand) as brand_order_count, " +
-                     "  SUM(oi.quantity) OVER (PARTITION BY p.brand) as brand_units_sold, " +
+                     "  COUNT(*) OVER (PARTITION BY p.manufacturer) as manufacturer_order_count, " +
+                     "  SUM(oi.quantity) OVER (PARTITION BY p.manufacturer) as manufacturer_units_sold, " +
                      "  RANK() OVER (PARTITION BY c.customer_id ORDER BY o.order_date DESC) as customer_order_rank, " +
                      "  RANK() OVER (PARTITION BY p.category ORDER BY oi.subtotal DESC) as category_revenue_rank, " +
                      "  DENSE_RANK() OVER (ORDER BY o.total_amount DESC) as overall_order_value_rank, " +
