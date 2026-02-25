@@ -39,22 +39,13 @@ fi
 # View logs mode
 if [[ "$1" == "--logs" ]]; then
     echo "=========================================="
-    echo "Viewing Logs (Ctrl+C to exit)"
+    echo "Logs are not stored to disk"
     echo "=========================================="
-    echo "App1 logs: $APP1_DIR/app.log"
-    echo "App2 logs: $APP2_DIR/app.log"
-    echo "App3 logs: $APP3_DIR/app.log"
+    echo "Application logs are redirected to /dev/null to save disk space."
+    echo "Monitor application status using:"
+    echo "  - New Relic UI for transaction data"
+    echo "  - ps aux | grep java to check if processes are running"
     echo "=========================================="
-    echo ""
-
-    # Use multitail if available, otherwise tail all three
-    if command -v multitail &> /dev/null; then
-        multitail -s 2 "$APP1_DIR/app.log" "$APP2_DIR/app.log" "$APP3_DIR/app.log"
-    else
-        echo "Tip: Install 'multitail' for better log viewing"
-        echo "Showing App1 logs (for others, run: tail -f $APP2_DIR/app.log or tail -f $APP3_DIR/app.log)"
-        tail -f "$APP1_DIR/app.log"
-    fi
     exit 0
 fi
 
@@ -178,13 +169,11 @@ fi
 echo "=========================================="
 echo ""
 echo "Useful Commands:"
-echo "  View logs:     ./runBothApps.sh --logs"
 echo "  Stop apps:     ./runBothApps.sh --stop"
-echo "  Monitor CPU:   watch -n 2 'ps aux | head -1 && ps aux | grep -E \"java.*app[123]|nrdot-collector\" | grep -v grep'"
+echo "  Monitor CPU:   watch -n 2 'ps aux | head -1 && ps aux | grep -E \"java.*app[123]\" | grep -v grep'"
+echo "  Check status:  ps aux | grep 'java.*app[123]'"
 echo ""
-echo "Individual Logs:"
-echo "  App1: tail -f $APP1_DIR/app.log"
-echo "  App2: tail -f $APP2_DIR/app.log"
-echo "  App3: tail -f $APP3_DIR/app.log"
+echo "Note: Logs are not stored to disk (redirected to /dev/null)"
+echo "      Monitor via New Relic UI for transaction data"
 echo ""
 echo "=========================================="

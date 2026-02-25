@@ -64,14 +64,15 @@ if [ -f "newrelic.jar" ] && [ -f "newrelic.yml" ]; then
     echo "Config File: ./newrelic.yml"
     echo "Agent JAR: ./newrelic.jar"
     echo "Note: Configuration is read from newrelic.yml"
+    echo "Note: Logs are not stored to disk (redirected to /dev/null)"
     echo "=========================================="
     echo ""
 
     if [ "$BACKGROUND" = true ]; then
-        nohup java -javaagent:newrelic.jar -Dthreads=${THREADS} -jar "$JAR_FILE" > app.log 2>&1 &
+        nohup java -javaagent:newrelic.jar -Dthreads=${THREADS} -jar "$JAR_FILE" > /dev/null 2>&1 &
         PID=$!
         echo "Started in background with PID: $PID"
-        echo "Logs: tail -f app.log"
+        echo "Logs: Not stored (redirected to /dev/null)"
     else
         java -javaagent:newrelic.jar -Dthreads=${THREADS} -jar "$JAR_FILE"
     fi
@@ -85,14 +86,15 @@ else
     if [ ! -f "newrelic.yml" ]; then
         echo "Reason: newrelic.yml not found"
     fi
+    echo "Note: Logs are not stored to disk (redirected to /dev/null)"
     echo "=========================================="
     echo ""
 
     if [ "$BACKGROUND" = true ]; then
-        nohup java -Dthreads=${THREADS} -jar "$JAR_FILE" > app.log 2>&1 &
+        nohup java -Dthreads=${THREADS} -jar "$JAR_FILE" > /dev/null 2>&1 &
         PID=$!
         echo "Started in background with PID: $PID"
-        echo "Logs: tail -f app.log"
+        echo "Logs: Not stored (redirected to /dev/null)"
     else
         java -Dthreads=${THREADS} -jar "$JAR_FILE"
     fi
