@@ -56,36 +56,45 @@ echo "Pool Max: ${DB_POOL_MAX:-50}"
 echo "=========================================="
 echo ""
 
-# Check if New Relic agent is available
-if [ -f "newrelic.jar" ] && [ -f "newrelic.yml" ]; then
+# Check if New Relic agent is available (unpacked by Maven or manually placed)
+NEWRELIC_JAR=""
+NEWRELIC_YML=""
+
+# Check for unpacked agent from Maven (newrelic/newrelic.jar)
+if [ -f "newrelic/newrelic.jar" ] && [ -f "newrelic/newrelic.yml" ]; then
+    NEWRELIC_JAR="newrelic/newrelic.jar"
+    NEWRELIC_YML="newrelic/newrelic.yml"
+# Fallback to current directory (for manual placement)
+elif [ -f "newrelic.jar" ] && [ -f "newrelic.yml" ]; then
+    NEWRELIC_JAR="newrelic.jar"
+    NEWRELIC_YML="newrelic.yml"
+fi
+
+if [ -n "$NEWRELIC_JAR" ]; then
     echo "=========================================="
     echo "New Relic Agent: ENABLED"
     echo "=========================================="
-    echo "Config File: ./newrelic.yml"
-    echo "Agent JAR: ./newrelic.jar"
+    echo "Config File: $NEWRELIC_YML"
+    echo "Agent JAR: $NEWRELIC_JAR"
     echo "Note: Configuration is read from newrelic.yml"
     echo "Note: Logs are not stored to disk (redirected to /dev/null)"
     echo "=========================================="
     echo ""
 
     if [ "$BACKGROUND" = true ]; then
-        nohup java -javaagent:newrelic.jar -Dthreads=${THREADS} -jar "$JAR_FILE" > /dev/null 2>&1 &
+        nohup java -javaagent:$NEWRELIC_JAR -Dthreads=${THREADS} -jar "$JAR_FILE" > /dev/null 2>&1 &
         PID=$!
         echo "Started in background with PID: $PID"
         echo "Logs: Not stored (redirected to /dev/null)"
     else
-        java -javaagent:newrelic.jar -Dthreads=${THREADS} -jar "$JAR_FILE"
+        java -javaagent:$NEWRELIC_JAR -Dthreads=${THREADS} -jar "$JAR_FILE"
     fi
 else
     echo "=========================================="
     echo "New Relic Agent: DISABLED"
     echo "=========================================="
-    if [ ! -f "newrelic.jar" ]; then
-        echo "Reason: newrelic.jar not found"
-    fi
-    if [ ! -f "newrelic.yml" ]; then
-        echo "Reason: newrelic.yml not found"
-    fi
+    echo "Reason: newrelic.jar or newrelic.yml not found"
+    echo "Hint: Run './build-all.sh' to download and unpack the agent"
     echo "Note: Logs are not stored to disk (redirected to /dev/null)"
     echo "=========================================="
     echo ""

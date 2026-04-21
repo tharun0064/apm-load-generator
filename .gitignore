@@ -25,8 +25,8 @@ buildNumber.properties
 *~
 
 # New Relic
-# Note: newrelic.jar and newrelic.yml are included in the project (see exceptions below)
-# Only ignore the agent log file
+# Note: newrelic/ directory is auto-downloaded by Maven during build
+newrelic/
 newrelic_agent.log
 
 # Logs
@@ -48,7 +48,3 @@ Thumbs.db
 *.zip
 *.tar.gz
 *.rar
-
-# Exception: Include newrelic.jar in the project
-!app1-oltp-load-generator/newrelic.jar
-!app2-analytics-load-generator/newrelic.jar
