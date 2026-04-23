@@ -82,12 +82,12 @@ if [ -n "$NEWRELIC_JAR" ]; then
     echo ""
 
     if [ "$BACKGROUND" = true ]; then
-        nohup java -javaagent:$NEWRELIC_JAR -Dthreads=${THREADS} -jar "$JAR_FILE" > /dev/null 2>&1 &
+        nohup java -javaagent:$NEWRELIC_JAR -Dnewrelic.config.file=$(pwd)/newrelic.yml -Dthreads=${THREADS} -jar "$JAR_FILE" > /dev/null 2>&1 &
         PID=$!
         echo "Started in background with PID: $PID"
         echo "Logs: Not stored (redirected to /dev/null)"
     else
-        java -javaagent:$NEWRELIC_JAR -Dthreads=${THREADS} -jar "$JAR_FILE"
+        java -javaagent:$NEWRELIC_JAR -Dnewrelic.config.file=$(pwd)/newrelic.yml -Dthreads=${THREADS} -jar "$JAR_FILE"
     fi
 else
     echo "=========================================="
