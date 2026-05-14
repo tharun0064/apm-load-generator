@@ -10,6 +10,7 @@ set -e
 APP1_DIR="app1-oltp-load-generator"
 APP2_DIR="app2-analytics-load-generator"
 APP3_DIR="app3-analytics-load-generator"
+APP4_DIR="app4-analytics-no-apm"
 
 # Colors for output
 RED='\033[0;31m'
@@ -31,6 +32,9 @@ if [[ "$1" == "--stop" ]]; then
 
     echo -e "${YELLOW}Stopping App3 (Analytics3)...${NC}"
     pkill -f 'java.*app3-analytics-load-generator' && echo -e "${GREEN}✓ App3 stopped${NC}" || echo -e "${YELLOW}⚠ App3 not running${NC}"
+
+    echo -e "${YELLOW}Stopping App4 (Analytics No APM)...${NC}"
+    pkill -f 'java.*app4-analytics-no-apm' && echo -e "${GREEN}✓ App4 stopped${NC}" || echo -e "${YELLOW}⚠ App4 not running${NC}"
 
     echo "=========================================="
     exit 0
@@ -57,18 +61,21 @@ echo "=========================================="
 APP1_RUNNING=$(pgrep -f 'java.*app1-oltp-load-generator' || echo "")
 APP2_RUNNING=$(pgrep -f 'java.*app2-analytics-load-generator' || echo "")
 APP3_RUNNING=$(pgrep -f 'java.*app3-analytics-load-generator' || echo "")
+APP4_RUNNING=$(pgrep -f 'java.*app4-analytics-no-apm' || echo "")
 
-if [ -n "$APP1_RUNNING" ] || [ -n "$APP2_RUNNING" ] || [ -n "$APP3_RUNNING" ]; then
+if [ -n "$APP1_RUNNING" ] || [ -n "$APP2_RUNNING" ] || [ -n "$APP3_RUNNING" ] || [ -n "$APP4_RUNNING" ]; then
     echo -e "${YELLOW}Found running applications:${NC}"
     [ -n "$APP1_RUNNING" ] && echo "  App1 (OLTP): PID $APP1_RUNNING"
     [ -n "$APP2_RUNNING" ] && echo "  App2 (Analytics): PID $APP2_RUNNING"
     [ -n "$APP3_RUNNING" ] && echo "  App3 (Analytics3): PID $APP3_RUNNING"
+    [ -n "$APP4_RUNNING" ] && echo "  App4 (Analytics No APM): PID $APP4_RUNNING"
     echo ""
     echo -e "${YELLOW}Stopping existing processes...${NC}"
 
     [ -n "$APP1_RUNNING" ] && pkill -f 'java.*app1-oltp-load-generator' && echo -e "${GREEN}✓ Stopped App1${NC}"
     [ -n "$APP2_RUNNING" ] && pkill -f 'java.*app2-analytics-load-generator' && echo -e "${GREEN}✓ Stopped App2${NC}"
     [ -n "$APP3_RUNNING" ] && pkill -f 'java.*app3-analytics-load-generator' && echo -e "${GREEN}✓ Stopped App3${NC}"
+    [ -n "$APP4_RUNNING" ] && pkill -f 'java.*app4-analytics-no-apm' && echo -e "${GREEN}✓ Stopped App4${NC}"
 
     # Wait for processes to fully terminate
     sleep 2
@@ -96,6 +103,12 @@ fi
 
 if [ ! -f "$APP3_DIR/target/app3-analytics-load-generator-1.0.0.jar" ]; then
     echo -e "${RED}✗ App3 JAR not found${NC}"
+    echo "Please build first: ./build-all.sh"
+    exit 1
+fi
+
+if [ ! -f "$APP4_DIR/target/app4-analytics-no-apm-1.0.0.jar" ]; then
+    echo -e "${RED}✗ App4 JAR not found${NC}"
     echo "Please build first: ./build-all.sh"
     exit 1
 fi
@@ -136,6 +149,18 @@ cd "$APP3_DIR"
 cd ..
 echo ""
 
+# Wait a moment before starting App4
+sleep 2
+
+# Start App4
+echo "=========================================="
+echo "Starting App4 (Analytics No APM)"
+echo "=========================================="
+cd "$APP4_DIR"
+./run.sh --bg
+cd ..
+echo ""
+
 # Wait for apps to start
 sleep 3
 
@@ -147,6 +172,7 @@ echo "=========================================="
 APP1_PID=$(pgrep -f 'java.*app1-oltp-load-generator' || echo "")
 APP2_PID=$(pgrep -f 'java.*app2-analytics-load-generator' || echo "")
 APP3_PID=$(pgrep -f 'java.*app3-analytics-load-generator' || echo "")
+APP4_PID=$(pgrep -f 'java.*app4-analytics-no-apm' || echo "")
 
 if [ -n "$APP1_PID" ]; then
     echo -e "${GREEN}✓ App1 running (PID: $APP1_PID)${NC}"
@@ -166,12 +192,18 @@ else
     echo -e "${RED}✗ App3 failed to start${NC}"
 fi
 
+if [ -n "$APP4_PID" ]; then
+    echo -e "${GREEN}✓ App4 running (PID: $APP4_PID)${NC}"
+else
+    echo -e "${RED}✗ App4 failed to start${NC}"
+fi
+
 echo "=========================================="
 echo ""
 echo "Useful Commands:"
 echo "  Stop apps:     ./runBothApps.sh --stop"
-echo "  Monitor CPU:   watch -n 2 'ps aux | head -1 && ps aux | grep -E \"java.*app[123]\" | grep -v grep'"
-echo "  Check status:  ps aux | grep 'java.*app[123]'"
+echo "  Monitor CPU:   watch -n 2 'ps aux | head -1 && ps aux | grep -E \"java.*app[1-4]\" | grep -v grep'"
+echo "  Check status:  ps aux | grep 'java.*app[1-4]'"
 echo ""
 echo "Note: Logs are not stored to disk (redirected to /dev/null)"
 echo "      Monitor via New Relic UI for transaction data"

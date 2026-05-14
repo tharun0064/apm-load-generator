@@ -84,6 +84,20 @@ fi
 cd ..
 
 echo ""
+echo "Building Application 4: Analytics Load Generator (No APM)"
+echo "--------------------------------------------------------"
+cd app4-analytics-no-apm
+mvn clean package -DskipTests
+if [ $? -eq 0 ]; then
+    echo "✓ Analytics Load Generator (No APM) built successfully"
+    echo "  Output: app4-analytics-no-apm/target/app4-analytics-no-apm-1.0.0.jar"
+else
+    echo "✗ Analytics Load Generator (No APM) build failed"
+    exit 1
+fi
+cd ..
+
+echo ""
 echo "=========================================="
 echo "Build Complete!"
 echo "=========================================="
@@ -101,5 +115,6 @@ echo "   # Or run individually:"
 echo "   cd app1-oltp-load-generator && ./run.sh --bg"
 echo "   cd app2-analytics-load-generator && ./run.sh --bg"
 echo "   cd app3-analytics-load-generator && ./run.sh --bg"
+echo "   cd app4-analytics-no-apm && ./run.sh --bg  # No APM instrumentation"
 echo ""
 echo "See README.md for complete documentation"
