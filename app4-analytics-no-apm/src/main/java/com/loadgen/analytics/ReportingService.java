@@ -24,38 +24,34 @@ public class ReportingService {
     public void generateExecutiveDashboard() {
         String sql = "SELECT " +
                      "  'Orders' as metric, " +
-                     "  (SELECT COUNT(*) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE)) as today_count, " +
-                     "  (SELECT COUNT(*) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE - 1)) as yesterday_count, " +
-                     "  (SELECT COUNT(*) FROM oltp_user.ORDERS WHERE order_date >= TRUNC(SYSDATE, 'MM')) as month_to_date " +
-                     "FROM DUAL " +
+                     "  (SELECT COUNT(*) FROM oltp.ORDERS WHERE CAST(order_date AS DATE) = CAST(GETDATE() AS DATE)) as today_count, " +
+                     "  (SELECT COUNT(*) FROM oltp.ORDERS WHERE CAST(order_date AS DATE) = CAST(DATEADD(day, -1, GETDATE()) AS DATE)) as yesterday_count, " +
+                     "  (SELECT COUNT(*) FROM oltp.ORDERS WHERE order_date >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)) as month_to_date " +
                      "UNION ALL " +
                      "SELECT " +
                      "  'Revenue' as metric, " +
-                     "  ROUND((SELECT SUM(total_amount) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE)), 0) as today_count, " +
-                     "  ROUND((SELECT SUM(total_amount) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE - 1)), 0) as yesterday_count, " +
-                     "  ROUND((SELECT SUM(total_amount) FROM oltp_user.ORDERS WHERE order_date >= TRUNC(SYSDATE, 'MM')), 0) as month_to_date " +
-                     "FROM DUAL " +
+                     "  ROUND((SELECT SUM(total_amount) FROM oltp.ORDERS WHERE CAST(order_date AS DATE) = CAST(GETDATE() AS DATE)), 0) as today_count, " +
+                     "  ROUND((SELECT SUM(total_amount) FROM oltp.ORDERS WHERE CAST(order_date AS DATE) = CAST(DATEADD(day, -1, GETDATE()) AS DATE)), 0) as yesterday_count, " +
+                     "  ROUND((SELECT SUM(total_amount) FROM oltp.ORDERS WHERE order_date >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)), 0) as month_to_date " +
                      "UNION ALL " +
                      "SELECT " +
                      "  'New Customers' as metric, " +
-                     "  (SELECT COUNT(*) FROM oltp_user.CUSTOMERS WHERE TRUNC(created_at) = TRUNC(SYSDATE)) as today_count, " +
-                     "  (SELECT COUNT(*) FROM oltp_user.CUSTOMERS WHERE TRUNC(created_at) = TRUNC(SYSDATE - 1)) as yesterday_count, " +
-                     "  (SELECT COUNT(*) FROM oltp_user.CUSTOMERS WHERE created_at >= TRUNC(SYSDATE, 'MM')) as month_to_date " +
-                     "FROM DUAL " +
+                     "  (SELECT COUNT(*) FROM oltp.CUSTOMERS WHERE CAST(created_at AS DATE) = CAST(GETDATE() AS DATE)) as today_count, " +
+                     "  (SELECT COUNT(*) FROM oltp.CUSTOMERS WHERE CAST(created_at AS DATE) = CAST(DATEADD(day, -1, GETDATE()) AS DATE)) as yesterday_count, " +
+                     "  (SELECT COUNT(*) FROM oltp.CUSTOMERS WHERE created_at >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)) as month_to_date " +
                      "UNION ALL " +
                      "SELECT " +
                      "  'Avg Order Value' as metric, " +
-                     "  ROUND((SELECT AVG(total_amount) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE)), 2) as today_count, " +
-                     "  ROUND((SELECT AVG(total_amount) FROM oltp_user.ORDERS WHERE TRUNC(order_date) = TRUNC(SYSDATE - 1)), 2) as yesterday_count, " +
-                     "  ROUND((SELECT AVG(total_amount) FROM oltp_user.ORDERS WHERE order_date >= TRUNC(SYSDATE, 'MM')), 2) as month_to_date " +
-                     "FROM DUAL";
+                     "  ROUND((SELECT AVG(total_amount) FROM oltp.ORDERS WHERE CAST(order_date AS DATE) = CAST(GETDATE() AS DATE)), 2) as today_count, " +
+                     "  ROUND((SELECT AVG(total_amount) FROM oltp.ORDERS WHERE CAST(order_date AS DATE) = CAST(DATEADD(day, -1, GETDATE()) AS DATE)), 2) as yesterday_count, " +
+                     "  ROUND((SELECT AVG(total_amount) FROM oltp.ORDERS WHERE order_date >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)), 2) as month_to_date";
 
         executeReportQuery(sql, "ExecutiveDashboard");
     }
 
     public void generateSalesReport() {
         String sql = "SELECT " +
-                     "  TO_CHAR(o.order_date, 'YYYY-MM-DD') as order_date, " +
+                     "  CONVERT(VARCHAR(10), o.order_date, 120) as order_date, " +
                      "  o.status, " +
                      "  COUNT(DISTINCT o.order_id) as order_count, " +
                      "  COUNT(DISTINCT o.customer_id) as unique_customers, " +
@@ -66,10 +62,10 @@ public class ReportingService {
                      "  ROUND(AVG(o.total_amount), 2) as avg_order_value, " +
                      "  COALESCE(SUM(oi.quantity), 0) as total_items_sold, " +
                      "  COUNT(DISTINCT oi.product_id) as unique_products_sold " +
-                     "FROM oltp_user.ORDERS o " +
-                     "LEFT JOIN oltp_user.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
-                     "WHERE o.order_date >= SYSDATE - 30 " +
-                     "GROUP BY TO_CHAR(o.order_date, 'YYYY-MM-DD'), o.status " +
+                     "FROM oltp.ORDERS o " +
+                     "LEFT JOIN oltp.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
+                     "WHERE o.order_date >= DATEADD(day, -30, GETDATE()) " +
+                     "GROUP BY CONVERT(VARCHAR(10), o.order_date, 120), o.status " +
                      "ORDER BY order_date DESC, status";
 
         executeReportQuery(sql, "SalesReport");
@@ -89,13 +85,13 @@ public class ReportingService {
                      "  COUNT(CASE WHEN i.quantity_available < i.reorder_level THEN 1 END) as products_below_reorder, " +
                      "  COUNT(CASE WHEN i.quantity_available = 0 THEN 1 END) as out_of_stock_count, " +
                      "  COALESCE(SUM(recent_sales.units_sold), 0) as units_sold_30days " +
-                     "FROM oltp_user.PRODUCTS p " +
-                     "JOIN oltp_user.INVENTORY i ON p.product_id = i.product_id " +
+                     "FROM oltp.PRODUCTS p " +
+                     "JOIN oltp.INVENTORY i ON p.product_id = i.product_id " +
                      "LEFT JOIN ( " +
                      "  SELECT oi.product_id, SUM(oi.quantity) as units_sold " +
-                     "  FROM oltp_user.ORDER_ITEMS oi " +
-                     "  JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id " +
-                     "  WHERE o.order_date >= SYSDATE - 30 " +
+                     "  FROM oltp.ORDER_ITEMS oi " +
+                     "  JOIN oltp.ORDERS o ON oi.order_id = o.order_id " +
+                     "  WHERE o.order_date >= DATEADD(day, -30, GETDATE()) " +
                      "  GROUP BY oi.product_id " +
                      ") recent_sales ON p.product_id = recent_sales.product_id " +
                      "WHERE p.is_active = 1 " +
@@ -115,10 +111,10 @@ public class ReportingService {
                      "  ROUND(COALESCE(AVG(order_stats.order_count), 0), 2) as avg_orders_per_customer, " +
                      "  ROUND(COALESCE(AVG(order_stats.order_value), 0), 2) as avg_revenue_per_customer, " +
                      "  ROUND(COALESCE(AVG(order_stats.avg_order_value), 0), 2) as avg_order_value, " +
-                     "  COUNT(CASE WHEN order_stats.last_order_date >= SYSDATE - 30 THEN 1 END) as active_last_30_days, " +
-                     "  COUNT(CASE WHEN order_stats.last_order_date >= SYSDATE - 90 THEN 1 END) as active_last_90_days, " +
-                     "  COUNT(CASE WHEN order_stats.last_order_date < SYSDATE - 90 OR order_stats.last_order_date IS NULL THEN 1 END) as inactive " +
-                     "FROM oltp_user.CUSTOMERS c " +
+                     "  COUNT(CASE WHEN order_stats.last_order_date >= DATEADD(day, -30, GETDATE()) THEN 1 END) as active_last_30_days, " +
+                     "  COUNT(CASE WHEN order_stats.last_order_date >= DATEADD(day, -90, GETDATE()) THEN 1 END) as active_last_90_days, " +
+                     "  COUNT(CASE WHEN order_stats.last_order_date < DATEADD(day, -90, GETDATE()) OR order_stats.last_order_date IS NULL THEN 1 END) as inactive " +
+                     "FROM oltp.CUSTOMERS c " +
                      "LEFT JOIN ( " +
                      "  SELECT " +
                      "    o.customer_id, " +
@@ -126,7 +122,7 @@ public class ReportingService {
                      "    SUM(o.total_amount) as order_value, " +
                      "    AVG(o.total_amount) as avg_order_value, " +
                      "    MAX(o.order_date) as last_order_date " +
-                     "  FROM oltp_user.ORDERS o " +
+                     "  FROM oltp.ORDERS o " +
                      "  WHERE o.status IN ('COMPLETED', 'SHIPPED', 'DELIVERED') " +
                      "  GROUP BY o.customer_id " +
                      ") order_stats ON c.customer_id = order_stats.customer_id " +
@@ -147,8 +143,8 @@ public class ReportingService {
                      "  MIN(t.amount) as min_amount, " +
                      "  MAX(t.amount) as max_amount, " +
                      "  ROUND(COUNT(t.transaction_id) * 100.0 / SUM(COUNT(t.transaction_id)) OVER (PARTITION BY t.payment_gateway), 2) as pct_of_gateway_total " +
-                     "FROM oltp_user.TRANSACTIONS t " +
-                     "WHERE t.processed_at >= SYSDATE - 30 " +
+                     "FROM oltp.TRANSACTIONS t " +
+                     "WHERE t.processed_at >= DATEADD(day, -30, GETDATE()) " +
                      "GROUP BY t.payment_gateway, t.transaction_type, t.status " +
                      "ORDER BY t.payment_gateway, total_amount DESC";
 

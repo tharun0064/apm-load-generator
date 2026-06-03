@@ -24,7 +24,7 @@ public class CustomerService {
 
     @Trace
     public void updateLoyaltyPoints(long customerId, int points) {
-        String sql = "UPDATE CUSTOMERS SET loyalty_points = loyalty_points + ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?";
+        String sql = "UPDATE oltp.CUSTOMERS SET loyalty_points = loyalty_points + ?, updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -45,7 +45,7 @@ public class CustomerService {
 
     @Trace
     public void upgradeCustomerType(long customerId) {
-        String sql = "UPDATE CUSTOMERS SET customer_type = 'PREMIUM', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND customer_type = 'REGULAR'";
+        String sql = "UPDATE oltp.CUSTOMERS SET customer_type = 'PREMIUM', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND customer_type = 'REGULAR'";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -65,8 +65,8 @@ public class CustomerService {
 
     @Trace
     public void logCustomerAccess(long customerId) {
-        String sql = "INSERT INTO AUDIT_LOG (audit_id, table_name, operation, record_id, changed_by, changed_at) " +
-                     "VALUES (audit_seq.NEXTVAL, 'CUSTOMERS', 'ACCESS', ?, 'SYSTEM', CURRENT_TIMESTAMP)";
+        String sql = "INSERT INTO oltp.AUDIT_LOG (table_name, operation, record_id, changed_by, changed_at) " +
+                     "VALUES ('CUSTOMERS', 'ACCESS', ?, 'SYSTEM', CURRENT_TIMESTAMP)";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -82,7 +82,7 @@ public class CustomerService {
 
     @Trace
     public String getCustomerEmail(long customerId) {
-        String sql = "SELECT email FROM CUSTOMERS WHERE customer_id = ?";
+        String sql = "SELECT email FROM oltp.CUSTOMERS WHERE customer_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -104,7 +104,7 @@ public class CustomerService {
 
     @Trace
     public int getCustomerCount() {
-        String sql = "SELECT COUNT(*) FROM CUSTOMERS";
+        String sql = "SELECT COUNT(*) FROM oltp.CUSTOMERS";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);

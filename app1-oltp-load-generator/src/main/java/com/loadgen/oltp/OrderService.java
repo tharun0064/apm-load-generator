@@ -26,8 +26,8 @@ public class OrderService {
 
     @Trace
     public long createOrder(long customerId) {
-        String sql = "INSERT INTO ORDERS (order_id, customer_id, order_date, status, payment_method, created_at) " +
-                     "VALUES (order_seq.NEXTVAL, ?, CURRENT_TIMESTAMP, 'PENDING', ?, CURRENT_TIMESTAMP)";
+        String sql = "INSERT INTO oltp.ORDERS (customer_id, order_date, status, payment_method, created_at) " +
+                     "VALUES (?, CURRENT_TIMESTAMP, 'PENDING', ?, CURRENT_TIMESTAMP)";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql, new String[]{"order_id"})) {
@@ -55,15 +55,13 @@ public class OrderService {
 
     @Trace
     public void addOrderItem(long orderId, long productId, int quantity) {
-        // First get product price
-        String priceQuery = "SELECT price FROM PRODUCTS WHERE product_id = ?";
-        String insertSql = "INSERT INTO ORDER_ITEMS (order_item_id, order_id, product_id, quantity, unit_price, subtotal) " +
-                          "VALUES (order_item_seq.NEXTVAL, ?, ?, ?, ?, ?)";
+        String priceQuery = "SELECT price FROM oltp.PRODUCTS WHERE product_id = ?";
+        String insertSql = "INSERT INTO oltp.ORDER_ITEMS (order_id, product_id, quantity, unit_price, subtotal) " +
+                          "VALUES (?, ?, ?, ?, ?)";
 
         try (Connection conn = dbManager.getConnection()) {
             double price;
 
-            // Get price
             try (PreparedStatement pstmt = conn.prepareStatement(priceQuery)) {
                 pstmt.setLong(1, productId);
                 try (ResultSet rs = pstmt.executeQuery()) {
@@ -76,7 +74,6 @@ public class OrderService {
                 }
             }
 
-            // Insert order item
             double subtotal = price * quantity;
             try (PreparedStatement pstmt = conn.prepareStatement(insertSql)) {
                 pstmt.setLong(1, orderId);
@@ -97,10 +94,10 @@ public class OrderService {
 
     @Trace
     public void calculateOrderTotal(long orderId) {
-        String sql = "UPDATE ORDERS SET total_amount = (" +
-                     "  SELECT SUM(subtotal) FROM ORDER_ITEMS WHERE order_id = ?" +
+        String sql = "UPDATE oltp.ORDERS SET total_amount = (" +
+                     "  SELECT SUM(subtotal) FROM oltp.ORDER_ITEMS WHERE order_id = ?" +
                      "), tax_amount = (" +
-                     "  SELECT SUM(subtotal) * 0.08 FROM ORDER_ITEMS WHERE order_id = ?" +
+                     "  SELECT SUM(subtotal) * 0.08 FROM oltp.ORDER_ITEMS WHERE order_id = ?" +
                      "), updated_at = CURRENT_TIMESTAMP " +
                      "WHERE order_id = ?";
 
@@ -122,7 +119,7 @@ public class OrderService {
 
     @Trace
     public void updateOrderStatus(long orderId, String status) {
-        String sql = "UPDATE ORDERS SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?";
+        String sql = "UPDATE oltp.ORDERS SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE order_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -143,8 +140,8 @@ public class OrderService {
 
     @Trace
     public void logAudit(String tableName, long recordId, String operation) {
-        String sql = "INSERT INTO AUDIT_LOG (audit_id, table_name, operation, record_id, changed_by, changed_at) " +
-                     "VALUES (audit_seq.NEXTVAL, ?, ?, ?, 'SYSTEM', CURRENT_TIMESTAMP)";
+        String sql = "INSERT INTO oltp.AUDIT_LOG (table_name, operation, record_id, changed_by, changed_at) " +
+                     "VALUES (?, ?, ?, 'SYSTEM', CURRENT_TIMESTAMP)";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -163,7 +160,7 @@ public class OrderService {
 
     @Trace
     public long getMaxOrderId() {
-        String sql = "SELECT NVL(MAX(order_id), 0) FROM ORDERS";
+        String sql = "SELECT ISNULL(MAX(order_id), 0) FROM oltp.ORDERS";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -182,7 +179,7 @@ public class OrderService {
 
     @Trace
     public int getOrderCount() {
-        String sql = "SELECT COUNT(*) FROM ORDERS";
+        String sql = "SELECT COUNT(*) FROM oltp.ORDERS";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -201,45 +198,40 @@ public class OrderService {
 
     @Trace
     public int deleteOldCompletedOrders(int daysToKeep) {
-        // First delete order items, then orders (due to foreign key)
-        String deleteItemsSql = "DELETE FROM ORDER_ITEMS WHERE order_id IN (" +
-                               "  SELECT order_id FROM ORDERS " +
+        String deleteItemsSql = "DELETE FROM oltp.ORDER_ITEMS WHERE order_id IN (" +
+                               "  SELECT order_id FROM oltp.ORDERS " +
                                "  WHERE status IN ('COMPLETED', 'DELIVERED') " +
-                               "  AND order_date < SYSDATE - ?" +
+                               "  AND order_date < DATEADD(day, -?, GETDATE())" +
                                ")";
 
-        String deleteTransactionsSql = "DELETE FROM TRANSACTIONS WHERE order_id IN (" +
-                                      "  SELECT order_id FROM ORDERS " +
+        String deleteTransactionsSql = "DELETE FROM oltp.TRANSACTIONS WHERE order_id IN (" +
+                                      "  SELECT order_id FROM oltp.ORDERS " +
                                       "  WHERE status IN ('COMPLETED', 'DELIVERED') " +
-                                      "  AND order_date < SYSDATE - ?" +
+                                      "  AND order_date < DATEADD(day, -?, GETDATE())" +
                                       ")";
 
-        String deleteOrdersSql = "DELETE FROM ORDERS " +
+        String deleteOrdersSql = "DELETE FROM oltp.ORDERS " +
                                 "WHERE status IN ('COMPLETED', 'DELIVERED') " +
-                                "AND order_date < SYSDATE - ?";
+                                "AND order_date < DATEADD(day, -?, GETDATE())";
 
         int totalDeleted = 0;
 
         try (Connection conn = dbManager.getConnection()) {
-            // Fixed: Use transaction to prevent race conditions
             conn.setAutoCommit(false);
 
             try {
-                // Delete order items first
                 try (PreparedStatement pstmt = conn.prepareStatement(deleteItemsSql)) {
                     pstmt.setInt(1, daysToKeep);
                     int itemsDeleted = pstmt.executeUpdate();
                     logger.debug("Deleted {} old order items", itemsDeleted);
                 }
 
-                // Delete transactions
                 try (PreparedStatement pstmt = conn.prepareStatement(deleteTransactionsSql)) {
                     pstmt.setInt(1, daysToKeep);
                     int txnDeleted = pstmt.executeUpdate();
                     logger.debug("Deleted {} old transactions", txnDeleted);
                 }
 
-                // Delete orders
                 try (PreparedStatement pstmt = conn.prepareStatement(deleteOrdersSql)) {
                     pstmt.setInt(1, daysToKeep);
                     totalDeleted = pstmt.executeUpdate();
@@ -263,35 +255,30 @@ public class OrderService {
 
     @Trace
     public int deleteCancelledOrders() {
-        // Delete cancelled and failed orders
-        String deleteItemsSql = "DELETE FROM ORDER_ITEMS WHERE order_id IN (" +
-                               "  SELECT order_id FROM ORDERS WHERE status IN ('CANCELLED', 'PAYMENT_FAILED')" +
+        String deleteItemsSql = "DELETE FROM oltp.ORDER_ITEMS WHERE order_id IN (" +
+                               "  SELECT order_id FROM oltp.ORDERS WHERE status IN ('CANCELLED', 'PAYMENT_FAILED')" +
                                ")";
 
-        String deleteTransactionsSql = "DELETE FROM TRANSACTIONS WHERE order_id IN (" +
-                                      "  SELECT order_id FROM ORDERS WHERE status IN ('CANCELLED', 'PAYMENT_FAILED')" +
+        String deleteTransactionsSql = "DELETE FROM oltp.TRANSACTIONS WHERE order_id IN (" +
+                                      "  SELECT order_id FROM oltp.ORDERS WHERE status IN ('CANCELLED', 'PAYMENT_FAILED')" +
                                       ")";
 
-        String deleteOrdersSql = "DELETE FROM ORDERS WHERE status IN ('CANCELLED', 'PAYMENT_FAILED')";
+        String deleteOrdersSql = "DELETE FROM oltp.ORDERS WHERE status IN ('CANCELLED', 'PAYMENT_FAILED')";
 
         int totalDeleted = 0;
 
         try (Connection conn = dbManager.getConnection()) {
-            // Fixed: Use transaction to prevent race conditions
             conn.setAutoCommit(false);
 
             try {
-                // Delete order items
                 try (PreparedStatement pstmt = conn.prepareStatement(deleteItemsSql)) {
                     pstmt.executeUpdate();
                 }
 
-                // Delete transactions
                 try (PreparedStatement pstmt = conn.prepareStatement(deleteTransactionsSql)) {
                     pstmt.executeUpdate();
                 }
 
-                // Delete orders
                 try (PreparedStatement pstmt = conn.prepareStatement(deleteOrdersSql)) {
                     totalDeleted = pstmt.executeUpdate();
                     if (totalDeleted > 0) {
@@ -316,7 +303,7 @@ public class OrderService {
 
     @Trace
     public int deleteOldAuditLogs(int daysToKeep) {
-        String sql = "DELETE FROM AUDIT_LOG WHERE changed_at < SYSDATE - ?";
+        String sql = "DELETE FROM oltp.AUDIT_LOG WHERE changed_at < DATEADD(day, -?, GETDATE())";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {

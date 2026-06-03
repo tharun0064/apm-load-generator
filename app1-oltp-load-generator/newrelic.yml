@@ -4,20 +4,16 @@
 # Common settings
 common: &default_settings
   # License key (can be overridden by NEW_RELIC_LICENSE_KEY environment variable)
-  license_key: '<%= ENV["NEW_RELIC_LICENSE_KEY"] %>'
+  license_key: ''
 
-  # Application name (can be overridden by NEW_RELIC_APP_NAME environment variable)
-  app_name: <%= ENV["NEW_RELIC_APP_NAME"] || "EMPLOYEES" %>
+  app_name: APP1
 
-  # STAGING COLLECTOR - Critical for staging environment
-  host: <%= ENV["NEW_RELIC_HOST"] || "staging-collector.newrelic.com" %>
+  host: staging-collector.newrelic.com
   port: 443
 
-  # Audit mode for debugging (logs all data sent to New Relic)
   audit_mode: false
 
-  # Log settings
-  log_level: <%= ENV["NEW_RELIC_LOG_LEVEL"] || "info" %>
+  log_level: info
 
   # Log to file
   log_file_name: newrelic_agent.log
@@ -116,18 +112,18 @@ common: &default_settings
 # Environment specific settings can override common settings
 development:
   <<: *default_settings
-  app_name: EMPLOYEES (Development)
+  app_name: APP1
   log_level: debug
 
 test:
   <<: *default_settings
-  app_name: EMPLOYEES (Test)
+  app_name: APP1
   log_level: debug
 
 production:
   <<: *default_settings
-  app_name: EMPLOYEES (Production)
+  app_name: APP1
 
 staging:
   <<: *default_settings
-  app_name: EMPLOYEES (Staging)
+  app_name: APP1

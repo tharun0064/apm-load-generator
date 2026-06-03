@@ -22,21 +22,19 @@ public class DataWarehouseService {
     }
 
     public void aggregateSalesData() {
-        // Aggregate sales data and insert into analytics tables
-        String sql = "MERGE INTO analytics_user.SALES_SUMMARY ss " +
+        String sql = "MERGE analytics.SALES_SUMMARY AS ss " +
                      "USING ( " +
                      "  SELECT " +
-                     "    TRUNC(o.order_date) as summary_date, " +
+                     "    CAST(o.order_date AS DATE) as summary_date, " +
                      "    COUNT(DISTINCT o.order_id) as total_orders, " +
                      "    SUM(o.total_amount) as total_revenue, " +
                      "    COUNT(DISTINCT o.customer_id) as total_customers, " +
                      "    AVG(o.total_amount) as avg_order_value " +
-                     "  FROM oltp_user.ORDERS o " +
-                     "  WHERE o.order_date >= TRUNC(SYSDATE) - 7 " +
+                     "  FROM oltp.ORDERS o " +
+                     "  WHERE o.order_date >= DATEADD(day, -7, CAST(GETDATE() AS DATE)) " +
                      "    AND o.status IN ('COMPLETED', 'SHIPPED', 'DELIVERED') " +
-                     "  GROUP BY TRUNC(o.order_date) " +
-                     ") src " +
-                     "ON (ss.summary_date = src.summary_date) " +
+                     "  GROUP BY CAST(o.order_date AS DATE) " +
+                     ") src ON (ss.summary_date = src.summary_date) " +
                      "WHEN MATCHED THEN " +
                      "  UPDATE SET " +
                      "    ss.total_orders = src.total_orders, " +
@@ -45,15 +43,14 @@ public class DataWarehouseService {
                      "    ss.avg_order_value = src.avg_order_value, " +
                      "    ss.created_at = CURRENT_TIMESTAMP " +
                      "WHEN NOT MATCHED THEN " +
-                     "  INSERT (summary_id, summary_date, total_orders, total_revenue, total_customers, avg_order_value) " +
-                     "  VALUES (sales_summary_seq.NEXTVAL, src.summary_date, src.total_orders, src.total_revenue, src.total_customers, src.avg_order_value)";
+                     "  INSERT (summary_date, total_orders, total_revenue, total_customers, avg_order_value) " +
+                     "  VALUES (src.summary_date, src.total_orders, src.total_revenue, src.total_customers, src.avg_order_value);";
 
         executeDataWarehouseOperation(sql, "AggregateSalesData");
     }
 
     public void aggregateCustomerData() {
-        // Aggregate customer analytics
-        String sql = "MERGE INTO analytics_user.CUSTOMER_ANALYTICS ca " +
+        String sql = "MERGE analytics.CUSTOMER_ANALYTICS AS ca " +
                      "USING ( " +
                      "  SELECT " +
                      "    c.customer_id, " +
@@ -67,12 +64,11 @@ public class DataWarehouseService {
                      "      WHEN COUNT(o.order_id) >= 2 THEN 'Regular' " +
                      "      ELSE 'New' " +
                      "    END as customer_segment " +
-                     "  FROM oltp_user.CUSTOMERS c " +
-                     "  LEFT JOIN oltp_user.ORDERS o ON c.customer_id = o.customer_id " +
+                     "  FROM oltp.CUSTOMERS c " +
+                     "  LEFT JOIN oltp.ORDERS o ON c.customer_id = o.customer_id " +
                      "    AND o.status IN ('COMPLETED', 'SHIPPED', 'DELIVERED') " +
                      "  GROUP BY c.customer_id " +
-                     ") src " +
-                     "ON (ca.customer_id = src.customer_id) " +
+                     ") src ON (ca.customer_id = src.customer_id) " +
                      "WHEN MATCHED THEN " +
                      "  UPDATE SET " +
                      "    ca.total_orders = src.total_orders, " +
@@ -82,33 +78,31 @@ public class DataWarehouseService {
                      "    ca.customer_segment = src.customer_segment, " +
                      "    ca.calculated_at = CURRENT_TIMESTAMP " +
                      "WHEN NOT MATCHED THEN " +
-                     "  INSERT (analytics_id, customer_id, total_orders, total_spent, avg_order_value, last_order_date, customer_segment) " +
-                     "  VALUES (customer_analytics_seq.NEXTVAL, src.customer_id, src.total_orders, src.total_spent, src.avg_order_value, src.last_order_date, src.customer_segment)";
+                     "  INSERT (customer_id, total_orders, total_spent, avg_order_value, last_order_date, customer_segment) " +
+                     "  VALUES (src.customer_id, src.total_orders, src.total_spent, src.avg_order_value, src.last_order_date, src.customer_segment);";
 
         executeDataWarehouseOperation(sql, "AggregateCustomerData");
     }
 
     public void aggregateProductData() {
-        // Aggregate product performance data
-        String sql = "MERGE INTO analytics_user.PRODUCT_PERFORMANCE pp " +
+        String sql = "MERGE analytics.PRODUCT_PERFORMANCE AS pp " +
                      "USING ( " +
                      "  SELECT " +
                      "    p.product_id, " +
-                     "    TRUNC(SYSDATE, 'MM') as period_start, " +
-                     "    LAST_DAY(SYSDATE) as period_end, " +
+                     "    DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) as period_start, " +
+                     "    EOMONTH(GETDATE()) as period_end, " +
                      "    COALESCE(SUM(oi.quantity), 0) as units_sold, " +
                      "    COALESCE(SUM(oi.subtotal), 0) as revenue, " +
                      "    COALESCE(SUM(oi.subtotal) - SUM(oi.quantity * p.cost), 0) as profit, " +
                      "    0 as return_count " +
-                     "  FROM oltp_user.PRODUCTS p " +
-                     "  LEFT JOIN oltp_user.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
-                     "  LEFT JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id " +
-                     "    AND o.order_date >= TRUNC(SYSDATE, 'MM') " +
+                     "  FROM oltp.PRODUCTS p " +
+                     "  LEFT JOIN oltp.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
+                     "  LEFT JOIN oltp.ORDERS o ON oi.order_id = o.order_id " +
+                     "    AND o.order_date >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) " +
                      "    AND o.status IN ('COMPLETED', 'SHIPPED', 'DELIVERED') " +
                      "  WHERE p.is_active = 1 " +
                      "  GROUP BY p.product_id, p.cost " +
-                     ") src " +
-                     "ON (pp.product_id = src.product_id AND pp.period_start = src.period_start) " +
+                     ") src ON (pp.product_id = src.product_id AND pp.period_start = src.period_start) " +
                      "WHEN MATCHED THEN " +
                      "  UPDATE SET " +
                      "    pp.units_sold = src.units_sold, " +
@@ -116,14 +110,13 @@ public class DataWarehouseService {
                      "    pp.profit = src.profit, " +
                      "    pp.calculated_at = CURRENT_TIMESTAMP " +
                      "WHEN NOT MATCHED THEN " +
-                     "  INSERT (performance_id, product_id, period_start, period_end, units_sold, revenue, profit, return_count) " +
-                     "  VALUES (product_perf_seq.NEXTVAL, src.product_id, src.period_start, src.period_end, src.units_sold, src.revenue, src.profit, src.return_count)";
+                     "  INSERT (product_id, period_start, period_end, units_sold, revenue, profit, return_count) " +
+                     "  VALUES (src.product_id, src.period_start, src.period_end, src.units_sold, src.revenue, src.profit, src.return_count);";
 
         executeDataWarehouseOperation(sql, "AggregateProductData");
     }
 
     public void performFullTableScan() {
-        // Intentionally heavy query to stress the database
         String sql = "SELECT " +
                      "  o.order_id, " +
                      "  o.customer_id, " +
@@ -134,9 +127,9 @@ public class DataWarehouseService {
                      "  c.last_name, " +
                      "  c.email, " +
                      "  COUNT(oi.order_item_id) as item_count " +
-                     "FROM oltp_user.ORDERS o " +
-                     "JOIN oltp_user.CUSTOMERS c ON o.customer_id = c.customer_id " +
-                     "LEFT JOIN oltp_user.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
+                     "FROM oltp.ORDERS o " +
+                     "JOIN oltp.CUSTOMERS c ON o.customer_id = c.customer_id " +
+                     "LEFT JOIN oltp.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
                      "GROUP BY o.order_id, o.customer_id, o.order_date, o.status, o.total_amount, c.first_name, c.last_name, c.email " +
                      "ORDER BY o.order_date DESC";
 
@@ -149,7 +142,7 @@ public class DataWarehouseService {
             int rowCount = 0;
             while (rs.next()) {
                 rowCount++;
-                if (rowCount >= 1000) break; // Limit to prevent excessive processing
+                if (rowCount >= 1000) break;
             }
 
             long duration = System.currentTimeMillis() - startTime;
@@ -162,10 +155,9 @@ public class DataWarehouseService {
     }
 
     public void performComplexJoinQuery() {
-        // Very heavy 5-table join
-        String sql = "SELECT " +
+        String sql = "SELECT TOP 100 " +
                      "  c.customer_id, " +
-                     "  c.first_name || ' ' || c.last_name as customer_name, " +
+                     "  c.first_name + ' ' + c.last_name as customer_name, " +
                      "  c.customer_type, " +
                      "  COUNT(DISTINCT o.order_id) as order_count, " +
                      "  COUNT(DISTINCT oi.product_id) as unique_products, " +
@@ -175,17 +167,16 @@ public class DataWarehouseService {
                      "  SUM(CASE WHEN t.status = 'COMPLETED' THEN 1 ELSE 0 END) as successful_transactions, " +
                      "  COUNT(DISTINCT p.category) as categories_purchased, " +
                      "  AVG(inv.quantity_available) as avg_inventory_level " +
-                     "FROM oltp_user.CUSTOMERS c " +
-                     "LEFT JOIN oltp_user.ORDERS o ON c.customer_id = o.customer_id " +
-                     "LEFT JOIN oltp_user.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
-                     "LEFT JOIN oltp_user.TRANSACTIONS t ON o.order_id = t.order_id " +
-                     "LEFT JOIN oltp_user.PRODUCTS p ON oi.product_id = p.product_id " +
-                     "LEFT JOIN oltp_user.INVENTORY inv ON p.product_id = inv.product_id " +
-                     "WHERE o.order_date >= SYSDATE - 90 " +
+                     "FROM oltp.CUSTOMERS c " +
+                     "LEFT JOIN oltp.ORDERS o ON c.customer_id = o.customer_id " +
+                     "LEFT JOIN oltp.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
+                     "LEFT JOIN oltp.TRANSACTIONS t ON o.order_id = t.order_id " +
+                     "LEFT JOIN oltp.PRODUCTS p ON oi.product_id = p.product_id " +
+                     "LEFT JOIN oltp.INVENTORY inv ON p.product_id = inv.product_id " +
+                     "WHERE o.order_date >= DATEADD(day, -90, GETDATE()) " +
                      "GROUP BY c.customer_id, c.first_name, c.last_name, c.customer_type " +
                      "HAVING COUNT(DISTINCT o.order_id) > 0 " +
-                     "ORDER BY total_spent DESC " +
-                     "FETCH FIRST 100 ROWS ONLY";
+                     "ORDER BY total_spent DESC";
 
         long startTime = System.currentTimeMillis();
 

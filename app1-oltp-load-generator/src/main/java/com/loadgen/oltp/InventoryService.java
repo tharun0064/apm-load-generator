@@ -28,7 +28,7 @@ public class InventoryService {
 
     @Trace
     public int checkAvailability(long productId) {
-        String sql = "SELECT SUM(quantity_available - quantity_reserved) as available FROM INVENTORY WHERE product_id = ?";
+        String sql = "SELECT SUM(quantity_available - quantity_reserved) as available FROM oltp.INVENTORY WHERE product_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -52,7 +52,7 @@ public class InventoryService {
 
     @Trace
     public void restockInventory(long productId, int quantity) {
-        String sql = "UPDATE INVENTORY SET " +
+        String sql = "UPDATE oltp.INVENTORY SET " +
                      "quantity_available = quantity_available + ?, " +
                      "last_restock_date = CURRENT_TIMESTAMP, " +
                      "updated_at = CURRENT_TIMESTAMP " +
@@ -78,7 +78,7 @@ public class InventoryService {
     @Trace
     public void updateWarehouseLocation(long productId) {
         String newLocation = WAREHOUSES[random.nextInt(WAREHOUSES.length)];
-        String sql = "UPDATE INVENTORY SET warehouse_location = ?, updated_at = CURRENT_TIMESTAMP WHERE product_id = ?";
+        String sql = "UPDATE oltp.INVENTORY SET warehouse_location = ?, updated_at = CURRENT_TIMESTAMP WHERE product_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -97,12 +97,12 @@ public class InventoryService {
     @Trace
     public void reserveInventory(long orderId) {
         // Fixed: Use SUM() to handle multiple items with same product_id
-        String sql = "UPDATE INVENTORY SET " +
+        String sql = "UPDATE oltp.INVENTORY SET " +
                      "quantity_reserved = quantity_reserved + (" +
-                     "  SELECT SUM(oi.quantity) FROM ORDER_ITEMS oi WHERE oi.order_id = ? AND oi.product_id = INVENTORY.product_id" +
+                     "  SELECT SUM(oi.quantity) FROM oltp.ORDER_ITEMS oi WHERE oi.order_id = ? AND oi.product_id = INVENTORY.product_id" +
                      "), updated_at = CURRENT_TIMESTAMP " +
                      "WHERE product_id IN (" +
-                     "  SELECT product_id FROM ORDER_ITEMS WHERE order_id = ?" +
+                     "  SELECT product_id FROM oltp.ORDER_ITEMS WHERE order_id = ?" +
                      ")";
 
         try (Connection conn = dbManager.getConnection();
@@ -123,12 +123,14 @@ public class InventoryService {
     @Trace
     public void releaseInventory(long orderId) {
         // Fixed: Use SUM() to handle multiple items with same product_id
-        String sql = "UPDATE INVENTORY SET " +
-                     "quantity_reserved = GREATEST(0, quantity_reserved - (" +
-                     "  SELECT SUM(oi.quantity) FROM ORDER_ITEMS oi WHERE oi.order_id = ? AND oi.product_id = INVENTORY.product_id" +
-                     ")), updated_at = CURRENT_TIMESTAMP " +
+        String sql = "UPDATE oltp.INVENTORY SET " +
+                     "quantity_reserved = CASE WHEN quantity_reserved - (" +
+                     "  SELECT SUM(oi.quantity) FROM oltp.ORDER_ITEMS oi WHERE oi.order_id = ? AND oi.product_id = INVENTORY.product_id" +
+                     ") < 0 THEN 0 ELSE quantity_reserved - (" +
+                     "  SELECT SUM(oi.quantity) FROM oltp.ORDER_ITEMS oi WHERE oi.order_id = ? AND oi.product_id = INVENTORY.product_id" +
+                     ") END, updated_at = CURRENT_TIMESTAMP " +
                      "WHERE product_id IN (" +
-                     "  SELECT product_id FROM ORDER_ITEMS WHERE order_id = ?" +
+                     "  SELECT product_id FROM oltp.ORDER_ITEMS WHERE order_id = ?" +
                      ")";
 
         try (Connection conn = dbManager.getConnection();
@@ -136,6 +138,7 @@ public class InventoryService {
 
             pstmt.setLong(1, orderId);
             pstmt.setLong(2, orderId);
+            pstmt.setLong(3, orderId);
 
             int updated = pstmt.executeUpdate();
             logger.debug("Released inventory for order {}: {} products updated", orderId, updated);
@@ -147,8 +150,8 @@ public class InventoryService {
 
     @Trace
     public void adjustInventory(long productId, int adjustment) {
-        String sql = "UPDATE INVENTORY SET " +
-                     "quantity_available = GREATEST(0, quantity_available + ?), " +
+        String sql = "UPDATE oltp.INVENTORY SET " +
+                     "quantity_available = CASE WHEN quantity_available + ? < 0 THEN 0 ELSE quantity_available + ? END, " +
                      "updated_at = CURRENT_TIMESTAMP " +
                      "WHERE product_id = ?";
 
@@ -156,7 +159,8 @@ public class InventoryService {
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, adjustment);
-            pstmt.setLong(2, productId);
+            pstmt.setInt(2, adjustment);
+            pstmt.setLong(3, productId);
 
             pstmt.executeUpdate();
             logger.debug("Adjusted inventory for product {}: {}", productId, adjustment);
@@ -190,7 +194,7 @@ public class InventoryService {
         // CRITICAL: Sort product IDs to ensure consistent lock ordering across threads
         java.util.Collections.sort(productIds);
 
-        String sql = "UPDATE INVENTORY SET " +
+        String sql = "UPDATE oltp.INVENTORY SET " +
                      "quantity_available = quantity_available + ?, " +
                      "updated_at = CURRENT_TIMESTAMP " +
                      "WHERE product_id = ?";
@@ -213,9 +217,9 @@ public class InventoryService {
             } catch (SQLException e) {
                 attempt++;
 
-                // Check for deadlock (ORA-00060) or resource busy (ORA-00054)
-                boolean isDeadlock = e.getMessage().contains("ORA-00060") || e.getMessage().contains("deadlock");
-                boolean isResourceBusy = e.getMessage().contains("ORA-00054") || e.getMessage().contains("resource busy");
+                // Check for SQL Server deadlock (error 1205) or lock timeout (error 1222)
+                boolean isDeadlock = e.getErrorCode() == 1205 || (e.getMessage() != null && e.getMessage().contains("deadlock"));
+                boolean isResourceBusy = e.getErrorCode() == 1222 || (e.getMessage() != null && e.getMessage().contains("lock timeout"));
 
                 if ((isDeadlock || isResourceBusy) && attempt < maxRetries) {
                     // Exponential backoff: wait 100ms, 200ms, 400ms

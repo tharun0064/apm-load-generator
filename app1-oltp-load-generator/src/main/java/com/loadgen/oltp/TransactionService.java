@@ -27,11 +27,11 @@ public class TransactionService {
 
     @Trace
     public long createTransaction(long orderId, String transactionType) {
-        String sql = "INSERT INTO TRANSACTIONS (" +
-                     "transaction_id, order_id, transaction_type, payment_gateway, " +
+        String sql = "INSERT INTO oltp.TRANSACTIONS (" +
+                     "order_id, transaction_type, payment_gateway, " +
                      "gateway_transaction_id, status, processed_at, amount, currency" +
-                     ") VALUES (transaction_seq.NEXTVAL, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, " +
-                     "(SELECT total_amount FROM ORDERS WHERE order_id = ?), 'USD')";
+                     ") VALUES (?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, " +
+                     "(SELECT total_amount FROM oltp.ORDERS WHERE order_id = ?), 'USD')";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql, new String[]{"transaction_id"})) {
@@ -65,10 +65,9 @@ public class TransactionService {
 
     @Trace
     public boolean processPayment(long orderId) {
-        // Simulate payment processing - 95% success rate
         boolean success = random.nextInt(100) < 95;
 
-        String sql = "UPDATE TRANSACTIONS SET status = ?, processed_at = CURRENT_TIMESTAMP, error_message = ? " +
+        String sql = "UPDATE oltp.TRANSACTIONS SET status = ?, processed_at = CURRENT_TIMESTAMP, error_message = ? " +
                      "WHERE order_id = ? AND status = 'PENDING'";
 
         try (Connection conn = dbManager.getConnection();
@@ -98,12 +97,12 @@ public class TransactionService {
 
     @Trace
     public void refundTransaction(long transactionId) {
-        String sql = "INSERT INTO TRANSACTIONS (" +
-                     "transaction_id, order_id, transaction_type, payment_gateway, " +
+        String sql = "INSERT INTO oltp.TRANSACTIONS (" +
+                     "order_id, transaction_type, payment_gateway, " +
                      "gateway_transaction_id, status, processed_at, amount, currency" +
-                     ") SELECT transaction_seq.NEXTVAL, order_id, 'REFUND', payment_gateway, " +
+                     ") SELECT order_id, 'REFUND', payment_gateway, " +
                      "?, 'COMPLETED', CURRENT_TIMESTAMP, -amount, currency " +
-                     "FROM TRANSACTIONS WHERE transaction_id = ?";
+                     "FROM oltp.TRANSACTIONS WHERE transaction_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -126,8 +125,8 @@ public class TransactionService {
     @Trace
     public double getTotalTransactionAmount(long customerId) {
         String sql = "SELECT SUM(t.amount) as total " +
-                     "FROM TRANSACTIONS t " +
-                     "JOIN ORDERS o ON t.order_id = o.order_id " +
+                     "FROM oltp.TRANSACTIONS t " +
+                     "JOIN oltp.ORDERS o ON t.order_id = o.order_id " +
                      "WHERE o.customer_id = ? AND t.status = 'COMPLETED'";
 
         try (Connection conn = dbManager.getConnection();
@@ -152,7 +151,7 @@ public class TransactionService {
 
     @Trace
     public int getFailedTransactionCount() {
-        String sql = "SELECT COUNT(*) FROM TRANSACTIONS WHERE status = 'FAILED'";
+        String sql = "SELECT COUNT(*) FROM oltp.TRANSACTIONS WHERE status = 'FAILED'";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);

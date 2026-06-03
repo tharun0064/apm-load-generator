@@ -4,20 +4,16 @@
 # Common settings
 common: &default_settings
   # License key (can be overridden by NEW_RELIC_LICENSE_KEY environment variable)
-  license_key: '<%= ENV["NEW_RELIC_LICENSE_KEY"] %>'
+  license_key: ''
 
-  # Application name (can be overridden by NEW_RELIC_APP_NAME environment variable)
-  app_name: <%= ENV["NEW_RELIC_APP_NAME"] || "PAYMENTS" %>
+  app_name: Analytics-Load-Generator-2
 
-  # STAGING COLLECTOR - Critical for staging environment
-  host: <%= ENV["NEW_RELIC_HOST"] || "staging-collector.newrelic.com" %>
+  host: staging-collector.newrelic.com
   port: 443
 
-  # Audit mode for debugging (logs all data sent to New Relic)
   audit_mode: false
 
-  # Log settings
-  log_level: <%= ENV["NEW_RELIC_LOG_LEVEL"] || "info" %>
+  log_level: info
 
   # Log to file
   log_file_name: newrelic_agent.log
@@ -116,18 +112,18 @@ common: &default_settings
 # Environment specific settings can override common settings
 development:
   <<: *default_settings
-  app_name: PAYMENTS (Development)
+  app_name: Analytics-Load-Generator-2
   log_level: debug
 
 test:
   <<: *default_settings
-  app_name: PAYMENTS (Test)
+  app_name: Analytics-Load-Generator-2
   log_level: debug
 
 production:
   <<: *default_settings
-  app_name: PAYMENTS (Production)
+  app_name: Analytics-Load-Generator-2
 
 staging:
   <<: *default_settings
-  app_name: PAYMENTS (Staging)
+  app_name: Analytics-Load-Generator-2

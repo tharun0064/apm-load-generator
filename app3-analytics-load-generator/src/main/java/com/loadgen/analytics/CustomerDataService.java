@@ -22,9 +22,9 @@ public class CustomerDataService {
     @Trace
     public void getCustomerAnalytics() {
         // Heavy multi-table join query with full table scans
-        String sql = "SELECT" +
+        String sql = "SELECT TOP 500 " +
                      "  c.customer_id, " +
-                     "  c.first_name || ' ' || c.last_name as customer_name, " +
+                     "  c.first_name + ' ' + c.last_name as customer_name, " +
                      "  c.email, " +
                      "  c.phone, " +
                      "  c.city, " +
@@ -84,8 +84,8 @@ public class CustomerDataService {
                      "  RANK() OVER (PARTITION BY p.category ORDER BY oi.subtotal DESC) as category_revenue_rank, " +
                      "  DENSE_RANK() OVER (ORDER BY o.total_amount DESC) as overall_order_value_rank, " +
                      "  ROW_NUMBER() OVER (PARTITION BY c.state ORDER BY o.order_date DESC) as state_order_sequence, " +
-                     "  ROUND(MONTHS_BETWEEN(SYSDATE, o.order_date), 2) as months_since_order, " +
-                     "  ROUND(MONTHS_BETWEEN(SYSDATE, c.created_at), 2) as customer_age_months, " +
+                     "  ROUND(DATEDIFF(month, o.order_date, GETDATE()) * 1.0, 2) as months_since_order, " +
+                     "  ROUND(DATEDIFF(month, c.created_at, GETDATE()) * 1.0, 2) as customer_age_months, " +
                      "  CASE " +
                      "    WHEN o.total_amount > 1000 THEN 'High Value' " +
                      "    WHEN o.total_amount > 500 THEN 'Medium Value' " +
@@ -101,22 +101,20 @@ public class CustomerDataService {
                      "  ROUND((oi.subtotal - (oi.quantity * p.cost)) / NULLIF(oi.subtotal, 0) * 100, 2) as item_profit_margin, " +
                      "  (inv.quantity_available * p.cost) as inventory_value_at_cost, " +
                      "  (inv.quantity_available * p.price) as inventory_value_at_retail, " +
-                     "  EXTRACT(YEAR FROM o.order_date) as order_year, " +
-                     "  EXTRACT(MONTH FROM o.order_date) as order_month, " +
-                     "  EXTRACT(DAY FROM o.order_date) as order_day, " +
-                     "  TO_CHAR(o.order_date, 'Day') as order_day_name, " +
-                     "  TO_CHAR(o.order_date, 'HH24:MI:SS') as order_time, " +
-                     "  TRUNC(o.order_date) as order_date_only " +
-                     "FROM oltp_user.CUSTOMERS c, oltp_user.ORDERS o, oltp_user.ORDER_ITEMS oi, " +
-                     "     oltp_user.PRODUCTS p, oltp_user.INVENTORY inv, oltp_user.TRANSACTIONS t " +
-                     "WHERE c.customer_id = o.customer_id " +
-                     "  AND o.order_id = oi.order_id " +
-                     "  AND oi.product_id = p.product_id " +
-                     "  AND p.product_id = inv.product_id(+) " +
-                     "  AND o.order_id = t.order_id(+) " +
-                     "  AND o.order_date >= ADD_MONTHS(SYSDATE, -24) " +
-                     "ORDER BY c.customer_id, o.order_date DESC, oi.subtotal DESC " +
-                     "FETCH FIRST 500 ROWS ONLY";
+                     "  YEAR(o.order_date) as order_year, " +
+                     "  MONTH(o.order_date) as order_month, " +
+                     "  DAY(o.order_date) as order_day, " +
+                     "  DATENAME(weekday, o.order_date) as order_day_name, " +
+                     "  CONVERT(VARCHAR(8), o.order_date, 108) as order_time, " +
+                     "  CAST(o.order_date AS DATE) as order_date_only " +
+                     "FROM oltp.CUSTOMERS c " +
+                     "JOIN oltp.ORDERS o ON c.customer_id = o.customer_id " +
+                     "JOIN oltp.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
+                     "JOIN oltp.PRODUCTS p ON oi.product_id = p.product_id " +
+                     "LEFT JOIN oltp.INVENTORY inv ON p.product_id = inv.product_id " +
+                     "LEFT JOIN oltp.TRANSACTIONS t ON o.order_id = t.order_id " +
+                     "WHERE o.order_date >= DATEADD(month, -24, GETDATE()) " +
+                     "ORDER BY c.customer_id, o.order_date DESC, oi.subtotal DESC";
 
         executeAnalyticsQuery(sql, "CustomerAnalytics");
     }

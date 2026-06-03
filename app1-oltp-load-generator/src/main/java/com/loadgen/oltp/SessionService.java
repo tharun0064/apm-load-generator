@@ -26,7 +26,7 @@ public class SessionService {
     @Trace
     public String createSession(long customerId) {
         String sessionId = UUID.randomUUID().toString();
-        String sql = "INSERT INTO SESSION_DATA (session_id, customer_id, login_time, last_activity, is_active) " +
+        String sql = "INSERT INTO oltp.SESSION_DATA (session_id, customer_id, login_time, last_activity, is_active) " +
                      "VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)";
 
         try (Connection conn = dbManager.getConnection();
@@ -48,7 +48,7 @@ public class SessionService {
 
     @Trace
     public void updateSessionActivity(String sessionId) {
-        String sql = "UPDATE SESSION_DATA SET last_activity = CURRENT_TIMESTAMP WHERE session_id = ?";
+        String sql = "UPDATE oltp.SESSION_DATA SET last_activity = CURRENT_TIMESTAMP WHERE session_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -67,7 +67,7 @@ public class SessionService {
 
     @Trace
     public void expireSession(String sessionId) {
-        String sql = "UPDATE SESSION_DATA SET is_active = 0 WHERE session_id = ?";
+        String sql = "UPDATE oltp.SESSION_DATA SET is_active = 0 WHERE session_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -87,8 +87,8 @@ public class SessionService {
     @Trace
     public void expireOldSessions() {
         // Expire sessions older than 1 hour
-        String sql = "UPDATE SESSION_DATA SET is_active = 0 " +
-                     "WHERE is_active = 1 AND last_activity < (CURRENT_TIMESTAMP - INTERVAL '1' HOUR)";
+        String sql = "UPDATE oltp.SESSION_DATA SET is_active = 0 " +
+                     "WHERE is_active = 1 AND last_activity < DATEADD(hour, -1, GETDATE())";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -105,7 +105,7 @@ public class SessionService {
 
     @Trace
     public int getActiveSessionCount() {
-        String sql = "SELECT COUNT(*) FROM SESSION_DATA WHERE is_active = 1";
+        String sql = "SELECT COUNT(*) FROM oltp.SESSION_DATA WHERE is_active = 1";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -124,7 +124,7 @@ public class SessionService {
 
     @Trace
     public int getSessionCountByCustomer(long customerId) {
-        String sql = "SELECT COUNT(*) FROM SESSION_DATA WHERE customer_id = ? AND is_active = 1";
+        String sql = "SELECT COUNT(*) FROM oltp.SESSION_DATA WHERE customer_id = ? AND is_active = 1";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -147,8 +147,8 @@ public class SessionService {
     @Trace
     public int deleteExpiredSessions() {
         // Delete expired sessions (older than 2 hours)
-        String sql = "DELETE FROM SESSION_DATA " +
-                     "WHERE is_active = 0 OR last_activity < SYSDATE - (2/24)";
+        String sql = "DELETE FROM oltp.SESSION_DATA " +
+                     "WHERE is_active = 0 OR last_activity < DATEADD(hour, -2, GETDATE())";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {

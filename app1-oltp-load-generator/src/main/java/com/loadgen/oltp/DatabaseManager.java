@@ -55,16 +55,11 @@ public class DatabaseManager {
 
         // Performance settings
         config.setAutoCommit(true);
-        config.addDataSourceProperty("cachePrepStmts", "true");
-        config.addDataSourceProperty("prepStmtCacheSize", "250");
-        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
-        config.addDataSourceProperty("useServerPrepStmts", "true");
 
-        // Oracle specific settings - TIMEOUTS ARE CRITICAL
-        config.addDataSourceProperty("oracle.jdbc.implicitStatementCacheSize", "50");
-        config.addDataSourceProperty("oracle.net.CONNECT_TIMEOUT", "30000");  // 30s connection timeout
-        config.addDataSourceProperty("oracle.jdbc.ReadTimeout", "60000");  // 60s query timeout
-        config.addDataSourceProperty("oracle.net.READ_TIMEOUT", "60000");  // 60s socket read timeout
+        // SQL Server specific settings - TIMEOUTS ARE CRITICAL
+        config.addDataSourceProperty("socketTimeout", "60000");   // 60s socket read timeout
+        config.addDataSourceProperty("loginTimeout", "30");        // 30s connection login timeout (seconds)
+        config.addDataSourceProperty("sendStringParametersAsUnicode", "false"); // perf: avoid N'' params unless needed
 
         config.setPoolName("OltpConnectionPool");
 

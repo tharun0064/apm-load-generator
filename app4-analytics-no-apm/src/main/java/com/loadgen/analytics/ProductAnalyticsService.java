@@ -35,10 +35,10 @@ public class ProductAnalyticsService {
                      "  COALESCE(SUM(i.quantity_available), 0) as current_inventory, " +
                      "  COALESCE(SUM(i.quantity_reserved), 0) as reserved_inventory, " +
                      "  COUNT(DISTINCT oi.order_id) as order_count " +
-                     "FROM oltp_user.PRODUCTS p " +
-                     "LEFT JOIN oltp_user.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
-                     "LEFT JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id AND o.order_date >= SYSDATE - 90 " +
-                     "LEFT JOIN oltp_user.INVENTORY i ON p.product_id = i.product_id " +
+                     "FROM oltp.PRODUCTS p " +
+                     "LEFT JOIN oltp.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
+                     "LEFT JOIN oltp.ORDERS o ON oi.order_id = o.order_id AND o.order_date >= DATEADD(day, -90, GETDATE()) " +
+                     "LEFT JOIN oltp.INVENTORY i ON p.product_id = i.product_id " +
                      "WHERE p.is_active = 1 " +
                      "GROUP BY p.product_id, p.product_name, p.category, p.price, p.cost " +
                      "ORDER BY total_revenue DESC";
@@ -55,14 +55,14 @@ public class ProductAnalyticsService {
                      "  COALESCE(SUM(oi.quantity), 0) as units_sold_90days, " +
                      "  ROUND(COALESCE(SUM(oi.quantity) / NULLIF(SUM(i.quantity_available + i.quantity_reserved), 0), 0), 2) as turnover_rate, " +
                      "  ROUND(90.0 / NULLIF(COALESCE(SUM(oi.quantity) / NULLIF(SUM(i.quantity_available + i.quantity_reserved), 0), 0), 0), 1) as days_to_turnover " +
-                     "FROM oltp_user.PRODUCTS p " +
-                     "JOIN oltp_user.INVENTORY i ON p.product_id = i.product_id " +
-                     "LEFT JOIN oltp_user.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
-                     "LEFT JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id " +
-                     "  AND o.order_date >= SYSDATE - 90 " +
+                     "FROM oltp.PRODUCTS p " +
+                     "JOIN oltp.INVENTORY i ON p.product_id = i.product_id " +
+                     "LEFT JOIN oltp.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
+                     "LEFT JOIN oltp.ORDERS o ON oi.order_id = o.order_id " +
+                     "  AND o.order_date >= DATEADD(day, -90, GETDATE()) " +
                      "WHERE p.is_active = 1 " +
                      "GROUP BY p.product_id, p.product_name, p.category " +
-                     "ORDER BY turnover_rate DESC NULLS LAST";
+                     "ORDER BY turnover_rate DESC";
 
         executeAnalyticsQuery(sql, "InventoryTurnoverRate");
     }
@@ -77,11 +77,11 @@ public class ProductAnalyticsService {
                      "  COALESCE(SUM(oi.quantity), 0) as units_sold_60days, " +
                      "  SUM(i.quantity_available) * p.cost as inventory_value, " +
                      "  ROUND(60.0 / NULLIF(COALESCE(SUM(oi.quantity), 0), 0), 1) as days_per_sale " +
-                     "FROM oltp_user.PRODUCTS p " +
-                     "JOIN oltp_user.INVENTORY i ON p.product_id = i.product_id " +
-                     "LEFT JOIN oltp_user.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
-                     "LEFT JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id " +
-                     "  AND o.order_date >= SYSDATE - 60 " +
+                     "FROM oltp.PRODUCTS p " +
+                     "JOIN oltp.INVENTORY i ON p.product_id = i.product_id " +
+                     "LEFT JOIN oltp.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
+                     "LEFT JOIN oltp.ORDERS o ON oi.order_id = o.order_id " +
+                     "  AND o.order_date >= DATEADD(day, -60, GETDATE()) " +
                      "WHERE p.is_active = 1 " +
                      "  AND i.quantity_available > 100 " +
                      "GROUP BY p.product_id, p.product_name, p.category, p.price, p.cost " +
@@ -103,10 +103,10 @@ public class ProductAnalyticsService {
                      "  ROUND((SUM(oi.subtotal) - SUM(oi.quantity * p.cost)) / NULLIF(SUM(oi.subtotal), 0) * 100, 2) as profit_margin_pct, " +
                      "  ROUND(AVG(p.price), 2) as avg_price, " +
                      "  ROUND((SUM(oi.subtotal) - SUM(oi.quantity * p.cost)) / COUNT(DISTINCT p.product_id), 2) as profit_per_product " +
-                     "FROM oltp_user.PRODUCTS p " +
-                     "JOIN oltp_user.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
-                     "JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id " +
-                     "WHERE o.order_date >= SYSDATE - 90 " +
+                     "FROM oltp.PRODUCTS p " +
+                     "JOIN oltp.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
+                     "JOIN oltp.ORDERS o ON oi.order_id = o.order_id " +
+                     "WHERE o.order_date >= DATEADD(day, -90, GETDATE()) " +
                      "  AND o.status IN ('COMPLETED', 'SHIPPED', 'DELIVERED') " +
                      "GROUP BY p.category " +
                      "ORDER BY total_profit DESC";
@@ -115,23 +115,21 @@ public class ProductAnalyticsService {
     }
 
     public void getProductAffinityAnalysis() {
-        // Products frequently bought together
-        String sql = "SELECT " +
+        String sql = "SELECT TOP 50 " +
                      "  p1.product_name as product_1, " +
                      "  p2.product_name as product_2, " +
                      "  COUNT(DISTINCT oi1.order_id) as times_bought_together, " +
                      "  ROUND(AVG(oi1.subtotal + oi2.subtotal), 2) as avg_combined_value " +
-                     "FROM oltp_user.ORDER_ITEMS oi1 " +
-                     "JOIN oltp_user.ORDER_ITEMS oi2 ON oi1.order_id = oi2.order_id " +
+                     "FROM oltp.ORDER_ITEMS oi1 " +
+                     "JOIN oltp.ORDER_ITEMS oi2 ON oi1.order_id = oi2.order_id " +
                      "  AND oi1.product_id < oi2.product_id " +
-                     "JOIN oltp_user.PRODUCTS p1 ON oi1.product_id = p1.product_id " +
-                     "JOIN oltp_user.PRODUCTS p2 ON oi2.product_id = p2.product_id " +
-                     "JOIN oltp_user.ORDERS o ON oi1.order_id = o.order_id " +
-                     "WHERE o.order_date >= SYSDATE - 60 " +
+                     "JOIN oltp.PRODUCTS p1 ON oi1.product_id = p1.product_id " +
+                     "JOIN oltp.PRODUCTS p2 ON oi2.product_id = p2.product_id " +
+                     "JOIN oltp.ORDERS o ON oi1.order_id = o.order_id " +
+                     "WHERE o.order_date >= DATEADD(day, -60, GETDATE()) " +
                      "GROUP BY p1.product_name, p2.product_name " +
                      "HAVING COUNT(DISTINCT oi1.order_id) >= 3 " +
-                     "ORDER BY times_bought_together DESC " +
-                     "FETCH FIRST 50 ROWS ONLY";
+                     "ORDER BY times_bought_together DESC";
 
         executeAnalyticsQuery(sql, "ProductAffinityAnalysis");
     }
@@ -141,13 +139,13 @@ public class ProductAnalyticsService {
                      "  SELECT " +
                      "    p.product_id, " +
                      "    p.product_name, " +
-                     "    TO_CHAR(o.order_date, 'YYYY-MM') as month, " +
+                     "    FORMAT(o.order_date, 'yyyy-MM') as month, " +
                      "    SUM(oi.subtotal) as revenue " +
-                     "  FROM oltp_user.PRODUCTS p " +
-                     "  JOIN oltp_user.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
-                     "  JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id " +
-                     "  WHERE o.order_date >= ADD_MONTHS(SYSDATE, -6) " +
-                     "  GROUP BY p.product_id, p.product_name, TO_CHAR(o.order_date, 'YYYY-MM') " +
+                     "  FROM oltp.PRODUCTS p " +
+                     "  JOIN oltp.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
+                     "  JOIN oltp.ORDERS o ON oi.order_id = o.order_id " +
+                     "  WHERE o.order_date >= DATEADD(month, -6, GETDATE()) " +
+                     "  GROUP BY p.product_id, p.product_name, FORMAT(o.order_date, 'yyyy-MM') " +
                      "), " +
                      "monthly_comparison AS ( " +
                      "  SELECT " +
@@ -159,9 +157,9 @@ public class ProductAnalyticsService {
                      "  FROM monthly_sales ms1 " +
                      "  LEFT JOIN monthly_sales ms2 " +
                      "    ON ms1.product_id = ms2.product_id " +
-                     "    AND TO_DATE(ms2.month, 'YYYY-MM') = ADD_MONTHS(TO_DATE(ms1.month, 'YYYY-MM'), -1) " +
+                     "    AND FORMAT(DATEADD(month, 1, CAST(ms2.month + '-01' AS DATE)), 'yyyy-MM') = ms1.month " +
                      ") " +
-                     "SELECT " +
+                     "SELECT TOP 30 " +
                      "  product_name, " +
                      "  current_month, " +
                      "  current_revenue, " +
@@ -169,8 +167,7 @@ public class ProductAnalyticsService {
                      "  ROUND((current_revenue - COALESCE(previous_revenue, 0)) / NULLIF(previous_revenue, 1) * 100, 2) as growth_pct " +
                      "FROM monthly_comparison " +
                      "WHERE current_revenue > 100 " +
-                     "ORDER BY growth_pct DESC NULLS LAST " +
-                     "FETCH FIRST 30 ROWS ONLY";
+                     "ORDER BY growth_pct DESC";
 
         executeAnalyticsQuery(sql, "ProductRevenueGrowth");
     }

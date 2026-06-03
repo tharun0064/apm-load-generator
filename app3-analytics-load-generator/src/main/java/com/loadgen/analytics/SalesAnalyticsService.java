@@ -25,16 +25,16 @@ public class SalesAnalyticsService {
     @Trace
     public void getDailySalesSummary() {
         String sql = "SELECT " +
-                     "  TRUNC(o.order_date) as order_day, " +
+                     "  CAST(o.order_date AS DATE) as order_day, " +
                      "  COUNT(DISTINCT o.order_id) as total_orders, " +
                      "  COUNT(DISTINCT o.customer_id) as unique_customers, " +
                      "  SUM(o.total_amount) as revenue, " +
                      "  AVG(o.total_amount) as avg_order_value, " +
                      "  SUM(oi.quantity) as total_items_sold " +
-                     "FROM oltp_user.ORDERS o " +
-                     "JOIN oltp_user.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
-                     "WHERE o.order_date >= SYSDATE - 30 " +
-                     "GROUP BY TRUNC(o.order_date) " +
+                     "FROM oltp.ORDERS o " +
+                     "JOIN oltp.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
+                     "WHERE o.order_date >= DATEADD(day, -30, GETDATE()) " +
+                     "GROUP BY CAST(o.order_date AS DATE) " +
                      "ORDER BY order_day DESC";
 
         executeAnalyticsQuery(sql, "DailySalesSummary");
@@ -43,15 +43,15 @@ public class SalesAnalyticsService {
     @Trace
     public void getMonthlySalesTrend() {
         String sql = "SELECT " +
-                     "  TO_CHAR(o.order_date, 'YYYY-MM') as month, " +
+                     "  FORMAT(o.order_date, 'yyyy-MM') as month, " +
                      "  COUNT(o.order_id) as total_orders, " +
                      "  SUM(o.total_amount) as revenue, " +
                      "  AVG(o.total_amount) as avg_order_value, " +
                      "  COUNT(DISTINCT o.customer_id) as unique_customers, " +
                      "  SUM(o.total_amount) / COUNT(DISTINCT o.customer_id) as revenue_per_customer " +
-                     "FROM oltp_user.ORDERS o " +
-                     "WHERE o.order_date >= ADD_MONTHS(SYSDATE, -12) " +
-                     "GROUP BY TO_CHAR(o.order_date, 'YYYY-MM') " +
+                     "FROM oltp.ORDERS o " +
+                     "WHERE o.order_date >= DATEADD(month, -12, GETDATE()) " +
+                     "GROUP BY FORMAT(o.order_date, 'yyyy-MM') " +
                      "ORDER BY month DESC";
 
         executeAnalyticsQuery(sql, "MonthlySalesTrend");
@@ -66,10 +66,10 @@ public class SalesAnalyticsService {
                      "  SUM(oi.subtotal) as revenue, " +
                      "  AVG(oi.unit_price) as avg_price, " +
                      "  SUM(oi.subtotal) - SUM(oi.quantity * p.cost) as profit " +
-                     "FROM oltp_user.ORDER_ITEMS oi " +
-                     "JOIN oltp_user.PRODUCTS p ON oi.product_id = p.product_id " +
-                     "JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id " +
-                     "WHERE o.order_date >= SYSDATE - 30 " +
+                     "FROM oltp.ORDER_ITEMS oi " +
+                     "JOIN oltp.PRODUCTS p ON oi.product_id = p.product_id " +
+                     "JOIN oltp.ORDERS o ON oi.order_id = o.order_id " +
+                     "WHERE o.order_date >= DATEADD(day, -30, GETDATE()) " +
                      "GROUP BY p.category " +
                      "ORDER BY revenue DESC";
 
@@ -78,7 +78,7 @@ public class SalesAnalyticsService {
 
     @Trace
     public void getTopSellingProducts(int limit) {
-        String sql = "SELECT " +
+        String sql = "SELECT TOP " + limit + " " +
                      "  p.product_id, " +
                      "  p.product_name, " +
                      "  p.category, " +
@@ -88,14 +88,13 @@ public class SalesAnalyticsService {
                      "  AVG(oi.unit_price) as avg_selling_price, " +
                      "  (SUM(oi.subtotal) - SUM(oi.quantity * p.cost)) as profit, " +
                      "  ROUND((SUM(oi.subtotal) - SUM(oi.quantity * p.cost)) / NULLIF(SUM(oi.subtotal), 0) * 100, 2) as profit_margin_pct " +
-                     "FROM oltp_user.PRODUCTS p " +
-                     "JOIN oltp_user.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
-                     "JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id " +
-                     "WHERE o.order_date >= SYSDATE - 90 " +
+                     "FROM oltp.PRODUCTS p " +
+                     "JOIN oltp.ORDER_ITEMS oi ON p.product_id = oi.product_id " +
+                     "JOIN oltp.ORDERS o ON oi.order_id = o.order_id " +
+                     "WHERE o.order_date >= DATEADD(day, -90, GETDATE()) " +
                      "  AND o.status != 'CANCELLED' " +
                      "GROUP BY p.product_id, p.product_name, p.category " +
-                     "ORDER BY total_quantity_sold DESC " +
-                     "FETCH FIRST " + limit + " ROWS ONLY";
+                     "ORDER BY total_quantity_sold DESC";
 
         executeAnalyticsQuery(sql, "TopSellingProducts");
     }
@@ -110,9 +109,9 @@ public class SalesAnalyticsService {
                      "  SUM(CASE WHEN t.status = 'COMPLETED' THEN 1 ELSE 0 END) as successful_transactions, " +
                      "  SUM(CASE WHEN t.status = 'FAILED' THEN 1 ELSE 0 END) as failed_transactions, " +
                      "  ROUND(SUM(CASE WHEN t.status = 'COMPLETED' THEN 1 ELSE 0 END) * 100.0 / COUNT(o.order_id), 2) as success_rate " +
-                     "FROM oltp_user.ORDERS o " +
-                     "LEFT JOIN oltp_user.TRANSACTIONS t ON o.order_id = t.order_id " +
-                     "WHERE o.order_date >= SYSDATE - 30 " +
+                     "FROM oltp.ORDERS o " +
+                     "LEFT JOIN oltp.TRANSACTIONS t ON o.order_id = t.order_id " +
+                     "WHERE o.order_date >= DATEADD(day, -30, GETDATE()) " +
                      "GROUP BY o.payment_method " +
                      "ORDER BY total_revenue DESC";
 
@@ -122,13 +121,13 @@ public class SalesAnalyticsService {
     @Trace
     public void getSalesPerformanceByHour() {
         String sql = "SELECT " +
-                     "  EXTRACT(HOUR FROM o.order_date) as hour_of_day, " +
+                     "  DATEPART(hour, o.order_date) as hour_of_day, " +
                      "  COUNT(o.order_id) as order_count, " +
                      "  SUM(o.total_amount) as revenue, " +
                      "  AVG(o.total_amount) as avg_order_value " +
-                     "FROM oltp_user.ORDERS o " +
-                     "WHERE o.order_date >= SYSDATE - 7 " +
-                     "GROUP BY EXTRACT(HOUR FROM o.order_date) " +
+                     "FROM oltp.ORDERS o " +
+                     "WHERE o.order_date >= DATEADD(day, -7, GETDATE()) " +
+                     "GROUP BY DATEPART(hour, o.order_date) " +
                      "ORDER BY hour_of_day";
 
         executeAnalyticsQuery(sql, "SalesPerformanceByHour");

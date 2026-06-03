@@ -40,8 +40,8 @@ public class CustomerAnalyticsService {
                      "    c.customer_id, " +
                      "    COUNT(o.order_id) as order_count, " +
                      "    COALESCE(SUM(o.total_amount), 0) as total_spent " +
-                     "  FROM oltp_user.CUSTOMERS c " +
-                     "  LEFT JOIN oltp_user.ORDERS o ON c.customer_id = o.customer_id " +
+                     "  FROM oltp.CUSTOMERS c " +
+                     "  LEFT JOIN oltp.ORDERS o ON c.customer_id = o.customer_id " +
                      "  GROUP BY c.customer_id " +
                      ") customer_stats " +
                      "GROUP BY " +
@@ -58,24 +58,23 @@ public class CustomerAnalyticsService {
 
     @Trace
     public void getCustomerLifetimeValue() {
-        String sql = "SELECT " +
+        String sql = "SELECT TOP 100 " +
                      "  c.customer_id, " +
-                     "  c.first_name || ' ' || c.last_name as customer_name, " +
+                     "  c.first_name + ' ' + c.last_name as customer_name, " +
                      "  c.customer_type, " +
                      "  c.loyalty_points, " +
                      "  COUNT(o.order_id) as total_orders, " +
                      "  SUM(o.total_amount) as lifetime_value, " +
                      "  AVG(o.total_amount) as avg_order_value, " +
                      "  MAX(o.order_date) as last_order_date, " +
-                     "  ROUND(MONTHS_BETWEEN(SYSDATE, c.created_at), 1) as customer_tenure_months, " +
-                     "  ROUND(SUM(o.total_amount) / NULLIF(MONTHS_BETWEEN(SYSDATE, c.created_at), 0), 2) as monthly_value " +
-                     "FROM oltp_user.CUSTOMERS c " +
-                     "LEFT JOIN oltp_user.ORDERS o ON c.customer_id = o.customer_id " +
+                     "  ROUND(DATEDIFF(month, c.created_at, GETDATE()) * 1.0, 1) as customer_tenure_months, " +
+                     "  ROUND(SUM(o.total_amount) / NULLIF(DATEDIFF(month, c.created_at, GETDATE()), 0), 2) as monthly_value " +
+                     "FROM oltp.CUSTOMERS c " +
+                     "LEFT JOIN oltp.ORDERS o ON c.customer_id = o.customer_id " +
                      "  AND o.status IN ('COMPLETED', 'SHIPPED', 'DELIVERED') " +
                      "GROUP BY c.customer_id, c.first_name, c.last_name, c.customer_type, c.loyalty_points, c.created_at " +
                      "HAVING COUNT(o.order_id) > 0 " +
-                     "ORDER BY lifetime_value DESC NULLS LAST " +
-                     "FETCH FIRST 100 ROWS ONLY";
+                     "ORDER BY lifetime_value DESC";
 
         executeAnalyticsQuery(sql, "CustomerLifetimeValue");
     }
@@ -84,11 +83,11 @@ public class CustomerAnalyticsService {
     public void getCustomerRetentionRate() {
         String sql = "WITH monthly_customers AS ( " +
                      "  SELECT " +
-                     "    TO_CHAR(o.order_date, 'YYYY-MM') as month, " +
+                     "    FORMAT(o.order_date, 'yyyy-MM') as month, " +
                      "    o.customer_id " +
-                     "  FROM oltp_user.ORDERS o " +
-                     "  WHERE o.order_date >= ADD_MONTHS(SYSDATE, -12) " +
-                     "  GROUP BY TO_CHAR(o.order_date, 'YYYY-MM'), o.customer_id " +
+                     "  FROM oltp.ORDERS o " +
+                     "  WHERE o.order_date >= DATEADD(month, -12, GETDATE()) " +
+                     "  GROUP BY FORMAT(o.order_date, 'yyyy-MM'), o.customer_id " +
                      "), " +
                      "retention_calc AS ( " +
                      "  SELECT " +
@@ -98,7 +97,7 @@ public class CustomerAnalyticsService {
                      "  FROM monthly_customers mc1 " +
                      "  LEFT JOIN monthly_customers mc2 " +
                      "    ON mc1.customer_id = mc2.customer_id " +
-                     "    AND TO_DATE(mc2.month, 'YYYY-MM') = ADD_MONTHS(TO_DATE(mc1.month, 'YYYY-MM'), 1) " +
+                     "    AND FORMAT(DATEADD(month, 1, CAST(mc1.month + '-01' AS DATE)), 'yyyy-MM') = mc2.month " +
                      "  GROUP BY mc1.month " +
                      ") " +
                      "SELECT " +
@@ -114,7 +113,7 @@ public class CustomerAnalyticsService {
 
     @Trace
     public void getHighValueCustomers(int limit) {
-        String sql = "SELECT " +
+        String sql = "SELECT TOP " + limit + " " +
                      "  c.customer_id, " +
                      "  c.email, " +
                      "  c.customer_type, " +
@@ -122,15 +121,14 @@ public class CustomerAnalyticsService {
                      "  SUM(o.total_amount) as total_spent, " +
                      "  AVG(o.total_amount) as avg_order_value, " +
                      "  MAX(o.order_date) as last_order_date, " +
-                     "  COUNT(DISTINCT TRUNC(o.order_date, 'MM')) as active_months, " +
+                     "  COUNT(DISTINCT DATEFROMPARTS(YEAR(o.order_date), MONTH(o.order_date), 1)) as active_months, " +
                      "  SUM(oi.quantity) as total_items_purchased " +
-                     "FROM oltp_user.CUSTOMERS c " +
-                     "JOIN oltp_user.ORDERS o ON c.customer_id = o.customer_id " +
-                     "JOIN oltp_user.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
+                     "FROM oltp.CUSTOMERS c " +
+                     "JOIN oltp.ORDERS o ON c.customer_id = o.customer_id " +
+                     "JOIN oltp.ORDER_ITEMS oi ON o.order_id = oi.order_id " +
                      "WHERE o.status IN ('COMPLETED', 'SHIPPED', 'DELIVERED') " +
                      "GROUP BY c.customer_id, c.email, c.customer_type " +
-                     "ORDER BY total_spent DESC " +
-                     "FETCH FIRST " + limit + " ROWS ONLY";
+                     "ORDER BY total_spent DESC";
 
         executeAnalyticsQuery(sql, "HighValueCustomers");
     }
@@ -154,10 +152,10 @@ public class CustomerAnalyticsService {
                      "      WHEN COUNT(o.order_id) >= 2 THEN '2-4 orders' " +
                      "      ELSE '1 order' " +
                      "    END as purchase_frequency_bucket " +
-                     "  FROM oltp_user.CUSTOMERS c " +
-                     "  LEFT JOIN oltp_user.ORDERS o ON c.customer_id = o.customer_id " +
+                     "  FROM oltp.CUSTOMERS c " +
+                     "  LEFT JOIN oltp.ORDERS o ON c.customer_id = o.customer_id " +
                      "  GROUP BY c.customer_id " +
-                     ") " +
+                     ") freq_buckets " +
                      "GROUP BY purchase_frequency_bucket " +
                      "ORDER BY " +
                      "  CASE purchase_frequency_bucket " +

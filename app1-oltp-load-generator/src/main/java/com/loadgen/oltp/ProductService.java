@@ -27,7 +27,7 @@ public class ProductService {
     @Trace
     public void updatePrice(long productId) {
         // Simulate price adjustment (up or down by up to 5%)
-        String sql = "UPDATE PRODUCTS SET price = price * (1 + (? / 100.0)) WHERE product_id = ?";
+        String sql = "UPDATE oltp.PRODUCTS SET price = price * (1 + (? / 100.0)) WHERE product_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -49,7 +49,7 @@ public class ProductService {
 
     @Trace
     public String getProductDetails(long productId) {
-        String sql = "SELECT product_name, category, price, sku FROM PRODUCTS WHERE product_id = ?";
+        String sql = "SELECT product_name, category, price, sku FROM oltp.PRODUCTS WHERE product_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -81,7 +81,7 @@ public class ProductService {
         int categoryNum = random.nextInt(10);
         String category = "Category" + categoryNum;
 
-        String sql = "SELECT product_id, product_name, price FROM PRODUCTS WHERE category = ? AND is_active = 1 ORDER BY price DESC";
+        String sql = "SELECT product_id, product_name, price FROM oltp.PRODUCTS WHERE category = ? AND is_active = 1 ORDER BY price DESC";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -104,7 +104,7 @@ public class ProductService {
 
     @Trace
     public int getProductCount() {
-        String sql = "SELECT COUNT(*) FROM PRODUCTS WHERE is_active = 1";
+        String sql = "SELECT COUNT(*) FROM oltp.PRODUCTS WHERE is_active = 1";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -123,7 +123,7 @@ public class ProductService {
 
     @Trace
     public void deactivateProduct(long productId) {
-        String sql = "UPDATE PRODUCTS SET is_active = 0 WHERE product_id = ?";
+        String sql = "UPDATE oltp.PRODUCTS SET is_active = 0 WHERE product_id = ?";
 
         try (Connection conn = dbManager.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
