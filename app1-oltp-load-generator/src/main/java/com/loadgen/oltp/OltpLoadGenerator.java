@@ -111,29 +111,32 @@ public class OltpLoadGenerator {
                 // Randomly select operation type with REDUCED weighted distribution
                 int operation = random.nextInt(100);
 
-                if (operation < 30) {
-                    // 30% - Create new orders (reduced frequency)
+                if (operation < 25) {
+                    // 25% - Create new orders
                     createOrderWorkflow();
-                } else if (operation < 55) {
-                    // 25% - Update customer information (SIMPLIFIED)
+                } else if (operation < 47) {
+                    // 22% - Update customer information
                     updateCustomerWorkflow();
-                } else if (operation < 75) {
-                    // 20% - Check and update inventory
+                } else if (operation < 65) {
+                    // 18% - Check and update inventory
                     inventoryCheckWorkflow();
-                } else if (operation < 90) {
-                    // 15% - Process transactions
+                } else if (operation < 78) {
+                    // 13% - Process transactions
                     processTransactionWorkflow();
-                } else if (operation < 95) {
+                } else if (operation < 88) {
+                    // 10% - Stored procedure workflows
+                    storedProcedureWorkflow();
+                } else if (operation < 93) {
                     // 5% - Session management
                     sessionManagementWorkflow();
-                } else if (operation < 98) {
-                    // 3% - Delete old data (HEAVILY REDUCED)
+                } else if (operation < 96) {
+                    // 3% - Delete old data
                     deleteOldDataWorkflow();
-                } else if (operation < 99) {
-                    // 1% - Bulk insert operations (HEAVILY REDUCED)
+                } else if (operation < 98) {
+                    // 2% - Bulk insert operations
                     bulkInsertWorkflow();
                 } else {
-                    // 1% - Product operations (HEAVILY REDUCED)
+                    // 2% - Product operations
                     productOperationsWorkflow();
                 }
 
@@ -288,6 +291,48 @@ public class OltpLoadGenerator {
 
         } catch (Exception e) {
             logger.error("Error in bulkInsertWorkflow", e);
+            NewRelic.noticeError(e);
+        }
+    }
+
+    @Trace
+    private void storedProcedureWorkflow() {
+        try {
+            int procChoice = random.nextInt(5);
+            switch (procChoice) {
+                case 0: {
+                    long customerId = random.nextInt(1000) + 1;
+                    int numItems = random.nextInt(5) + 1;
+                    String url = apiBaseUrl + "/api/procedures/create-order?customerId=" + customerId + "&numItems=" + numItems;
+                    restTemplate.postForObject(url, null, String.class);
+                    break;
+                }
+                case 1: {
+                    int restockQty = random.nextInt(400) + 200;
+                    String url = apiBaseUrl + "/api/procedures/restock-inventory?restockQuantity=" + restockQty;
+                    restTemplate.postForObject(url, null, String.class);
+                    break;
+                }
+                case 2: {
+                    long customerId = random.nextInt(1000) + 1;
+                    String url = apiBaseUrl + "/api/procedures/calculate-loyalty?customerId=" + customerId;
+                    restTemplate.postForObject(url, null, String.class);
+                    break;
+                }
+                case 3: {
+                    int daysToKeep = random.nextInt(60) + 30;
+                    String url = apiBaseUrl + "/api/procedures/purge-old-data?daysToKeep=" + daysToKeep;
+                    restTemplate.delete(url);
+                    break;
+                }
+                case 4: {
+                    String url = apiBaseUrl + "/api/procedures/daily-summary";
+                    restTemplate.postForObject(url, null, String.class);
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error in storedProcedureWorkflow", e);
             NewRelic.noticeError(e);
         }
     }

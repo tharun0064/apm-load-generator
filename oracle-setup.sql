@@ -417,3 +417,349 @@ GRANT SELECT ON v_$sysmetric TO otel_monitor;
 GRANT SELECT ON v_$sysmetric_history TO otel_monitor;
 
 COMMIT;
+
+-- ==================================================
+-- STEP 7: Create Stored Procedures under oltp_user
+-- ==================================================
+
+-- Grant cross-schema INSERT for daily sales summary procedure
+GRANT INSERT ON analytics_user.SALES_SUMMARY TO oltp_user;
+GRANT SELECT ON analytics_user.sales_summary_seq TO oltp_user;
+
+-- Procedure 1: Atomic order creation with items
+CREATE OR REPLACE PROCEDURE oltp_user.proc_create_order_with_items(
+    p_customer_id IN NUMBER,
+    p_num_items   IN NUMBER,
+    p_order_id    OUT NUMBER,
+    p_total       OUT NUMBER
+) AS
+    v_product_id NUMBER;
+    v_price      NUMBER(10,2);
+    v_quantity   NUMBER;
+    v_subtotal   NUMBER(12,2);
+BEGIN
+    SELECT oltp_user.order_seq.NEXTVAL INTO p_order_id FROM DUAL;
+
+    INSERT INTO oltp_user.ORDERS (order_id, customer_id, order_date, status, payment_method, created_at)
+    VALUES (p_order_id, p_customer_id, CURRENT_TIMESTAMP, 'PENDING', 'CREDIT_CARD', CURRENT_TIMESTAMP);
+
+    p_total := 0;
+
+    FOR i IN 1..p_num_items LOOP
+        v_product_id := TRUNC(DBMS_RANDOM.VALUE(1, 501));
+        v_quantity := TRUNC(DBMS_RANDOM.VALUE(1, 6));
+
+        BEGIN
+            SELECT price INTO v_price FROM oltp_user.PRODUCTS WHERE product_id = v_product_id;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                v_price := 29.99;
+        END;
+
+        v_subtotal := v_price * v_quantity;
+
+        INSERT INTO oltp_user.ORDER_ITEMS (order_item_id, order_id, product_id, quantity, unit_price, subtotal)
+        VALUES (oltp_user.order_item_seq.NEXTVAL, p_order_id, v_product_id, v_quantity, v_price, v_subtotal);
+
+        p_total := p_total + v_subtotal;
+    END LOOP;
+
+    UPDATE oltp_user.ORDERS
+    SET total_amount = p_total,
+        tax_amount = p_total * 0.08,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE order_id = p_order_id;
+
+    INSERT INTO oltp_user.AUDIT_LOG (audit_id, table_name, operation, record_id, changed_by, changed_at)
+    VALUES (oltp_user.audit_seq.NEXTVAL, 'ORDERS', 'INSERT', p_order_id, 'STORED_PROC', CURRENT_TIMESTAMP);
+
+    COMMIT;
+END;
+/
+
+-- Procedure 2: Restock low inventory
+CREATE OR REPLACE PROCEDURE oltp_user.proc_restock_low_inventory(
+    p_restock_quantity IN NUMBER DEFAULT 500,
+    p_items_restocked  OUT NUMBER
+) AS
+BEGIN
+    UPDATE oltp_user.INVENTORY
+    SET quantity_available = quantity_available + p_restock_quantity,
+        last_restock_date = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE quantity_available < reorder_level;
+
+    p_items_restocked := SQL%ROWCOUNT;
+    COMMIT;
+END;
+/
+
+-- Procedure 3: Calculate customer loyalty tier
+CREATE OR REPLACE PROCEDURE oltp_user.proc_calculate_customer_loyalty(
+    p_customer_id IN NUMBER,
+    p_new_points  OUT NUMBER,
+    p_tier        OUT VARCHAR2
+) AS
+    v_total_spent  NUMBER(12,2);
+    v_order_count  NUMBER;
+BEGIN
+    SELECT NVL(SUM(total_amount), 0), COUNT(*)
+    INTO v_total_spent, v_order_count
+    FROM oltp_user.ORDERS
+    WHERE customer_id = p_customer_id
+      AND status IN ('COMPLETED', 'DELIVERED');
+
+    p_new_points := TRUNC(v_total_spent * 10) + (v_order_count * 50);
+
+    IF p_new_points >= 50000 THEN
+        p_tier := 'PLATINUM';
+    ELSIF p_new_points >= 20000 THEN
+        p_tier := 'GOLD';
+    ELSIF p_new_points >= 5000 THEN
+        p_tier := 'SILVER';
+    ELSE
+        p_tier := 'BRONZE';
+    END IF;
+
+    UPDATE oltp_user.CUSTOMERS
+    SET loyalty_points = p_new_points,
+        customer_type = p_tier,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE customer_id = p_customer_id;
+
+    COMMIT;
+END;
+/
+
+-- Procedure 4: Purge old data (cascading delete)
+CREATE OR REPLACE PROCEDURE oltp_user.proc_purge_old_data(
+    p_days_to_keep   IN NUMBER,
+    p_orders_deleted OUT NUMBER,
+    p_items_deleted  OUT NUMBER,
+    p_logs_deleted   OUT NUMBER
+) AS
+BEGIN
+    DELETE FROM oltp_user.ORDER_ITEMS
+    WHERE order_id IN (
+        SELECT order_id FROM oltp_user.ORDERS
+        WHERE status IN ('COMPLETED', 'DELIVERED')
+          AND order_date < SYSDATE - p_days_to_keep
+    );
+    p_items_deleted := SQL%ROWCOUNT;
+
+    DELETE FROM oltp_user.TRANSACTIONS
+    WHERE order_id IN (
+        SELECT order_id FROM oltp_user.ORDERS
+        WHERE status IN ('COMPLETED', 'DELIVERED')
+          AND order_date < SYSDATE - p_days_to_keep
+    );
+
+    DELETE FROM oltp_user.ORDERS
+    WHERE status IN ('COMPLETED', 'DELIVERED')
+      AND order_date < SYSDATE - p_days_to_keep;
+    p_orders_deleted := SQL%ROWCOUNT;
+
+    DELETE FROM oltp_user.AUDIT_LOG
+    WHERE changed_at < SYSDATE - p_days_to_keep;
+    p_logs_deleted := SQL%ROWCOUNT;
+
+    COMMIT;
+END;
+/
+
+-- Procedure 5: Daily sales summary (cross-schema)
+CREATE OR REPLACE PROCEDURE oltp_user.proc_daily_sales_summary(
+    p_summary_date  IN DATE DEFAULT TRUNC(SYSDATE),
+    p_total_orders  OUT NUMBER,
+    p_total_revenue OUT NUMBER
+) AS
+    v_total_customers NUMBER;
+    v_avg_order_value NUMBER(10,2);
+BEGIN
+    SELECT COUNT(*), NVL(SUM(total_amount), 0), COUNT(DISTINCT customer_id)
+    INTO p_total_orders, p_total_revenue, v_total_customers
+    FROM oltp_user.ORDERS
+    WHERE TRUNC(order_date) = p_summary_date
+      AND status NOT IN ('CANCELLED', 'PAYMENT_FAILED');
+
+    IF p_total_orders > 0 THEN
+        v_avg_order_value := p_total_revenue / p_total_orders;
+    ELSE
+        v_avg_order_value := 0;
+    END IF;
+
+    DELETE FROM analytics_user.SALES_SUMMARY WHERE summary_date = p_summary_date;
+
+    INSERT INTO analytics_user.SALES_SUMMARY (
+        summary_id, summary_date, total_orders, total_revenue,
+        total_customers, avg_order_value, created_at
+    ) VALUES (
+        analytics_user.sales_summary_seq.NEXTVAL, p_summary_date, p_total_orders,
+        p_total_revenue, v_total_customers, v_avg_order_value, CURRENT_TIMESTAMP
+    );
+
+    COMMIT;
+END;
+/
+
+-- Grant execute on procedures to analytics_user
+GRANT EXECUTE ON oltp_user.proc_daily_sales_summary TO analytics_user;
+
+-- ============================================================
+-- STEP 8: Analytics Stored Procedures (under analytics_user)
+-- ============================================================
+
+-- Procedure 1: Sales Trend Analysis - Rolling averages and growth rates
+CREATE OR REPLACE PROCEDURE analytics_user.proc_sales_trend_analysis(
+    p_days_back IN NUMBER DEFAULT 30,
+    p_total_revenue OUT NUMBER,
+    p_avg_daily_revenue OUT NUMBER,
+    p_order_count OUT NUMBER
+) AS
+    v_min_date DATE;
+BEGIN
+    v_min_date := TRUNC(SYSDATE) - p_days_back;
+
+    SELECT NVL(SUM(daily_total), 0),
+           NVL(AVG(daily_total), 0),
+           NVL(SUM(daily_count), 0)
+    INTO p_total_revenue, p_avg_daily_revenue, p_order_count
+    FROM (
+        SELECT TRUNC(order_date) AS order_day,
+               SUM(total_amount) AS daily_total,
+               COUNT(*) AS daily_count
+        FROM oltp_user.ORDERS
+        WHERE order_date >= v_min_date
+          AND status IN ('COMPLETED', 'SHIPPED')
+        GROUP BY TRUNC(order_date)
+    );
+
+    MERGE INTO analytics_user.SALES_SUMMARY ss
+    USING (SELECT TRUNC(SYSDATE) AS summary_date FROM DUAL) src
+    ON (ss.summary_date = src.summary_date)
+    WHEN MATCHED THEN
+        UPDATE SET total_revenue = p_total_revenue,
+                   total_orders = p_order_count,
+                   avg_order_value = CASE WHEN p_order_count > 0 THEN p_total_revenue / p_order_count ELSE 0 END
+    WHEN NOT MATCHED THEN
+        INSERT (summary_id, summary_date, total_orders, total_revenue, total_customers, avg_order_value, created_at)
+        VALUES (analytics_user.sales_summary_seq.NEXTVAL, TRUNC(SYSDATE), p_order_count, p_total_revenue, 0,
+                CASE WHEN p_order_count > 0 THEN p_total_revenue / p_order_count ELSE 0 END, CURRENT_TIMESTAMP);
+
+    COMMIT;
+END;
+/
+
+-- Procedure 2: Customer Cohort Analysis - Segments customers by activity
+CREATE OR REPLACE PROCEDURE analytics_user.proc_customer_cohort_analysis(
+    p_months_back IN NUMBER DEFAULT 6,
+    p_active_customers OUT NUMBER,
+    p_churned_customers OUT NUMBER,
+    p_new_customers OUT NUMBER
+) AS
+    v_cutoff_date DATE;
+    v_new_cutoff DATE;
+BEGIN
+    v_cutoff_date := ADD_MONTHS(TRUNC(SYSDATE), -p_months_back);
+    v_new_cutoff := ADD_MONTHS(TRUNC(SYSDATE), -1);
+
+    SELECT COUNT(DISTINCT customer_id)
+    INTO p_active_customers
+    FROM oltp_user.ORDERS
+    WHERE order_date >= v_cutoff_date;
+
+    SELECT COUNT(*)
+    INTO p_churned_customers
+    FROM oltp_user.CUSTOMERS c
+    WHERE EXISTS (SELECT 1 FROM oltp_user.ORDERS o WHERE o.customer_id = c.customer_id)
+      AND NOT EXISTS (SELECT 1 FROM oltp_user.ORDERS o WHERE o.customer_id = c.customer_id AND o.order_date >= v_cutoff_date);
+
+    SELECT COUNT(*)
+    INTO p_new_customers
+    FROM oltp_user.CUSTOMERS
+    WHERE created_at >= v_new_cutoff;
+END;
+/
+
+-- Procedure 3: Product Recommendation Score - Finds co-purchased products
+CREATE OR REPLACE PROCEDURE analytics_user.proc_product_recommendation(
+    p_product_id IN NUMBER,
+    p_recommendations OUT NUMBER
+) AS
+BEGIN
+    SELECT COUNT(DISTINCT oi2.product_id)
+    INTO p_recommendations
+    FROM oltp_user.ORDER_ITEMS oi1
+    JOIN oltp_user.ORDER_ITEMS oi2 ON oi1.order_id = oi2.order_id AND oi1.product_id != oi2.product_id
+    WHERE oi1.product_id = p_product_id;
+
+    MERGE INTO analytics_user.PRODUCT_PERFORMANCE pp
+    USING (SELECT p_product_id AS product_id FROM DUAL) src
+    ON (pp.product_id = src.product_id)
+    WHEN MATCHED THEN
+        UPDATE SET recommendation_score = p_recommendations,
+                   last_analyzed = CURRENT_TIMESTAMP
+    WHEN NOT MATCHED THEN
+        INSERT (perf_id, product_id, total_sold, total_revenue, avg_rating, recommendation_score, last_analyzed)
+        VALUES (analytics_user.product_perf_seq.NEXTVAL, p_product_id, 0, 0, 0, p_recommendations, CURRENT_TIMESTAMP);
+
+    COMMIT;
+END;
+/
+
+-- Procedure 4: Inventory Forecast - Predicts reorder needs based on sales velocity
+CREATE OR REPLACE PROCEDURE analytics_user.proc_inventory_forecast(
+    p_days_horizon IN NUMBER DEFAULT 14,
+    p_items_at_risk OUT NUMBER,
+    p_total_items_checked OUT NUMBER
+) AS
+BEGIN
+    p_items_at_risk := 0;
+    p_total_items_checked := 0;
+
+    SELECT COUNT(*),
+           NVL(SUM(CASE WHEN current_qty < (daily_sales * p_days_horizon) THEN 1 ELSE 0 END), 0)
+    INTO p_total_items_checked, p_items_at_risk
+    FROM (
+        SELECT i.product_id,
+               i.quantity AS current_qty,
+               NVL(sales.avg_daily, 0) AS daily_sales
+        FROM oltp_user.INVENTORY i
+        LEFT JOIN (
+            SELECT oi.product_id,
+                   SUM(oi.quantity) / GREATEST(1, (SYSDATE - MIN(o.order_date))) AS avg_daily
+            FROM oltp_user.ORDER_ITEMS oi
+            JOIN oltp_user.ORDERS o ON oi.order_id = o.order_id
+            WHERE o.order_date >= SYSDATE - 30
+            GROUP BY oi.product_id
+        ) sales ON i.product_id = sales.product_id
+    );
+END;
+/
+
+-- Procedure 5: Revenue Reconciliation - Cross-checks orders vs transactions
+CREATE OR REPLACE PROCEDURE analytics_user.proc_revenue_reconciliation(
+    p_days_back IN NUMBER DEFAULT 7,
+    p_order_total OUT NUMBER,
+    p_transaction_total OUT NUMBER,
+    p_discrepancy OUT NUMBER
+) AS
+    v_start_date DATE;
+BEGIN
+    v_start_date := TRUNC(SYSDATE) - p_days_back;
+
+    SELECT NVL(SUM(total_amount), 0)
+    INTO p_order_total
+    FROM oltp_user.ORDERS
+    WHERE order_date >= v_start_date
+      AND status IN ('COMPLETED', 'SHIPPED');
+
+    SELECT NVL(SUM(amount), 0)
+    INTO p_transaction_total
+    FROM oltp_user.TRANSACTIONS
+    WHERE transaction_date >= v_start_date
+      AND status = 'COMPLETED';
+
+    p_discrepancy := p_order_total - p_transaction_total;
+END;
+/
