@@ -105,21 +105,24 @@ public class AnalyticsLoadGenerator {
                 // Then randomly select additional analytical operation
                 int operation = random.nextInt(100);
 
-                if (operation < 25) {
-                    // 25% - Sales analytics queries
+                if (operation < 22) {
+                    // 22% - Sales analytics queries
                     salesAnalyticsWorkflow();
-                } else if (operation < 45) {
-                    // 20% - Customer analytics
+                } else if (operation < 40) {
+                    // 18% - Customer analytics
                     customerAnalyticsWorkflow();
-                } else if (operation < 65) {
-                    // 20% - Product performance analytics
+                } else if (operation < 58) {
+                    // 18% - Product performance analytics
                     productAnalyticsWorkflow();
-                } else if (operation < 85) {
-                    // 20% - Reporting queries
+                } else if (operation < 76) {
+                    // 18% - Reporting queries
                     reportingWorkflow();
-                } else {
-                    // 15% - Data warehouse operations
+                } else if (operation < 90) {
+                    // 14% - Data warehouse operations
                     dataWarehouseWorkflow();
+                } else {
+                    // 10% - Stored procedure operations
+                    storedProcedureWorkflow();
                 }
 
                 queryCount++;
@@ -266,6 +269,41 @@ public class AnalyticsLoadGenerator {
             restTemplate.getForObject(url, String.class);
         } catch (Exception e) {
             logger.error("Error calling customer-data API", e);
+        }
+    }
+
+    private void storedProcedureWorkflow() {
+        try {
+            int choice = random.nextInt(5);
+            String url;
+
+            switch (choice) {
+                case 0:
+                    int daysBack = 7 + random.nextInt(83);
+                    url = apiBaseUrl + "/api/analytics/procedures/sales-trend?daysBack=" + daysBack;
+                    break;
+                case 1:
+                    int monthsBack = 3 + random.nextInt(10);
+                    url = apiBaseUrl + "/api/analytics/procedures/customer-cohort?monthsBack=" + monthsBack;
+                    break;
+                case 2:
+                    long productId = 1 + random.nextInt(1000);
+                    url = apiBaseUrl + "/api/analytics/procedures/product-recommendation?productId=" + productId;
+                    break;
+                case 3:
+                    int daysHorizon = 7 + random.nextInt(24);
+                    url = apiBaseUrl + "/api/analytics/procedures/inventory-forecast?daysHorizon=" + daysHorizon;
+                    break;
+                default:
+                    int reconcileDays = 3 + random.nextInt(28);
+                    url = apiBaseUrl + "/api/analytics/procedures/revenue-reconciliation?daysBack=" + reconcileDays;
+                    break;
+            }
+
+            restTemplate.postForObject(url, null, String.class);
+
+        } catch (Exception e) {
+            logger.error("Error in storedProcedureWorkflow", e);
         }
     }
 
